@@ -14,22 +14,27 @@ A lightweight terminal IDE built in Rust. Where iron meets purpose.
 
 ## Install
 
-```bash
-# One-liner (Linux & macOS)
-curl -fsSL https://raw.githubusercontent.com/ZichKoding/anvil/main/install.sh | sh
-```
-
-```powershell
-# One-liner (Windows PowerShell)
-irm https://raw.githubusercontent.com/ZichKoding/anvil/main/install.ps1 | iex
-```
+### From source (current)
 
 ```bash
-# From source
 cargo install --path .
 
 # For Pi / Termux (optimized release build)
 CARGO_TARGET_DIR=/tmp/anvil-target cargo build --release
+```
+
+### Pre-built binaries (coming soon)
+
+> Binary releases are not yet available. Once the first GitHub Release is published, these one-liners will work:
+
+```bash
+# Linux & macOS
+curl -fsSL https://raw.githubusercontent.com/ZichKoding/anvil/main/install.sh | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/ZichKoding/anvil/main/install.ps1 | iex
 ```
 
 ## Usage
