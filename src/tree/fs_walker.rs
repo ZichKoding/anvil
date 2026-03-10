@@ -17,10 +17,7 @@ pub fn read_directory(path: &Path) -> Vec<DirEntry> {
 
     for entry in read_dir.flatten() {
         let path = entry.path();
-        let name = entry
-            .file_name()
-            .to_string_lossy()
-            .into_owned();
+        let name = entry.file_name().to_string_lossy().into_owned();
         let is_dir = path.is_dir();
         entries.push(DirEntry { path, name, is_dir });
     }

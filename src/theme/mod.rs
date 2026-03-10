@@ -1,8 +1,8 @@
 pub mod palette;
 pub mod retroterm;
 
-use ratatui::style::Color;
 use crate::syntax::highlighter::HighlightGroup;
+use ratatui::style::Color;
 
 pub struct Theme {
     pub name: String,

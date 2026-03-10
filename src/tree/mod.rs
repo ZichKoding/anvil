@@ -1,13 +1,13 @@
 pub mod fs_walker;
 
-use std::path::{Path, PathBuf};
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style, Modifier};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
+use std::path::{Path, PathBuf};
 
-use fs_walker::{read_directory, DirEntry};
+use fs_walker::{DirEntry, read_directory};
 
 #[derive(Debug, Clone)]
 pub struct TreeNode {
@@ -173,13 +173,11 @@ impl FileTree {
             })
             .collect();
 
-        let list = List::new(items)
-            .block(block)
-            .highlight_style(
-                Style::default()
-                    .bg(selected_bg)
-                    .add_modifier(Modifier::BOLD),
-            );
+        let list = List::new(items).block(block).highlight_style(
+            Style::default()
+                .bg(selected_bg)
+                .add_modifier(Modifier::BOLD),
+        );
 
         frame.render_stateful_widget(list, area, &mut self.state);
     }

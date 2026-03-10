@@ -1,5 +1,6 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::app::{App, Focus, Mode};
+use crate::config::keybindings::KeybindingMode;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub fn handle_key_event(app: &mut App, key: KeyEvent) {
     // Global keys (work in all modes)
@@ -8,8 +9,26 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) {
             app.quit();
             return;
         }
+        KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.quit();
+            return;
+        }
         KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.toggle_sidebar();
+            return;
+        }
+        // Tab switching: Ctrl+PageDown/PageUp or Ctrl+Tab not available in terminals,
+        // so use Ctrl+N/P for next/prev tab
+        KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.next_editor();
+            return;
+        }
+        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.prev_editor();
+            return;
+        }
+        KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.close_active_editor();
             return;
         }
         _ => {}
@@ -17,17 +36,26 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) {
 
     match app.focus {
         Focus::Tree => handle_tree_keys(app, key),
-        Focus::Editor => match app.mode {
-            Mode::Normal => handle_normal_mode(app, key),
-            Mode::Insert => handle_insert_mode(app, key),
-            Mode::Command => {}
-        },
+        Focus::Editor => {
+            let is_vim = app.config.general.keybinding_mode == KeybindingMode::Vim;
+            if is_vim {
+                match app.mode {
+                    Mode::Normal => handle_normal_mode(app, key),
+                    Mode::Insert => handle_insert_mode(app, key),
+                    Mode::Command => {}
+                }
+            } else {
+                // VS Code mode: always insert
+                handle_insert_mode(app, key);
+            }
+        }
     }
 }
 
 fn handle_tree_keys(app: &mut App, key: KeyEvent) {
+    let is_vim = app.config.general.keybinding_mode == KeybindingMode::Vim;
     match key.code {
-        KeyCode::Char('q') => app.quit(),
+        KeyCode::Char('q') if is_vim => app.quit(),
         KeyCode::Tab => app.toggle_focus(),
         KeyCode::Up | KeyCode::Char('k') => app.file_tree.move_up(),
         KeyCode::Down | KeyCode::Char('j') => app.file_tree.move_down(),
@@ -204,16 +232,31 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 }
 
 fn handle_insert_mode(app: &mut App, key: KeyEvent) {
+    let is_vim = app.config.general.keybinding_mode == KeybindingMode::Vim;
+
     match key.code {
-        KeyCode::Esc | KeyCode::Char('[') if key.code == KeyCode::Esc || key.modifiers.contains(KeyModifiers::CONTROL) => {
+        KeyCode::Esc => {
+            if is_vim {
+                app.mode = Mode::Normal;
+                if let Some(editor) = app.active_editor_mut() {
+                    if editor.cursor.col > 0 {
+                        editor.cursor.col -= 1;
+                    }
+                }
+                app.status_message = String::from("Ready");
+            }
+            // In VS Code mode, Esc does nothing (always in insert)
+            return;
+        }
+        KeyCode::Char('[') if key.modifiers.contains(KeyModifiers::CONTROL) && is_vim => {
             app.mode = Mode::Normal;
-            // Move cursor back one (Vim behavior)
             if let Some(editor) = app.active_editor_mut() {
                 if editor.cursor.col > 0 {
                     editor.cursor.col -= 1;
                 }
             }
             app.status_message = String::from("Ready");
+            return;
         }
         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             save_current_file(app);
@@ -257,14 +300,14 @@ fn handle_insert_mode(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Tab => {
-            // Insert 4 spaces
+            let tab_size = app.config.editor.tab_size;
             if let Some(editor) = app.active_editor_mut() {
                 let line = editor.cursor.line;
                 let col = editor.cursor.col;
-                for i in 0..4 {
+                for i in 0..tab_size {
                     editor.buffer.insert_char(line, col + i, ' ');
                 }
-                editor.cursor.col += 4;
+                editor.cursor.col += tab_size;
                 reparse_highlighter(editor);
             }
         }

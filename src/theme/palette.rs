@@ -54,17 +54,41 @@ fn approximate_ansi(color: Color) -> Color {
     let gb = g > 100 && b > 100 && r < 80;
 
     if rg {
-        if is_bright { Color::LightYellow } else { Color::Yellow }
+        if is_bright {
+            Color::LightYellow
+        } else {
+            Color::Yellow
+        }
     } else if rb {
-        if is_bright { Color::LightMagenta } else { Color::Magenta }
+        if is_bright {
+            Color::LightMagenta
+        } else {
+            Color::Magenta
+        }
     } else if gb {
-        if is_bright { Color::LightCyan } else { Color::Cyan }
+        if is_bright {
+            Color::LightCyan
+        } else {
+            Color::Cyan
+        }
     } else if r_dom {
-        if is_bright { Color::LightRed } else { Color::Red }
+        if is_bright {
+            Color::LightRed
+        } else {
+            Color::Red
+        }
     } else if g_dom {
-        if is_bright { Color::LightGreen } else { Color::Green }
+        if is_bright {
+            Color::LightGreen
+        } else {
+            Color::Green
+        }
     } else if b_dom {
-        if is_bright { Color::LightBlue } else { Color::Blue }
+        if is_bright {
+            Color::LightBlue
+        } else {
+            Color::Blue
+        }
     } else if lum > 200 {
         Color::White
     } else if lum > 100 {

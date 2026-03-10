@@ -1,9 +1,11 @@
-use std::path::{Path, PathBuf};
-use ratatui::layout::Rect;
+use crate::config::Config;
+use crate::config::keybindings::KeybindingMode;
 use crate::editor::EditorPane;
 use crate::editor::buffer::Buffer;
 use crate::theme::Theme;
 use crate::tree::FileTree;
+use ratatui::layout::Rect;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
@@ -29,14 +31,23 @@ pub struct App {
     pub active_editor: usize,
     pub status_message: String,
     pub theme: Theme,
+    pub config: Config,
 }
 
 impl App {
     pub fn new(root: PathBuf) -> Self {
+        let config = Config::load();
+
+        // Set initial mode based on keybinding config
+        let mode = match config.general.keybinding_mode {
+            KeybindingMode::Vim => Mode::Normal,
+            KeybindingMode::Vscode => Mode::Insert, // VS Code is always insert
+        };
+
         Self {
             running: true,
             focus: Focus::Tree,
-            mode: Mode::Normal,
+            mode,
             terminal_size: Rect::default(),
             sidebar_visible: true,
             file_tree: FileTree::new(root),
@@ -44,6 +55,7 @@ impl App {
             active_editor: 0,
             status_message: String::from("Ready"),
             theme: Theme::default_theme(),
+            config,
         }
     }
 
@@ -66,7 +78,6 @@ impl App {
     }
 
     pub fn open_file(&mut self, path: &Path) {
-        // Check if already open
         for (i, editor) in self.editors.iter().enumerate() {
             if editor.buffer.file_path == path {
                 self.active_editor = i;
@@ -76,7 +87,6 @@ impl App {
             }
         }
 
-        // Open new buffer
         match Buffer::from_file(path) {
             Ok(buffer) => {
                 let name = buffer.filename().to_string();
@@ -113,6 +123,19 @@ impl App {
             } else {
                 self.active_editor - 1
             };
+        }
+    }
+
+    pub fn close_active_editor(&mut self) {
+        if self.editors.is_empty() {
+            return;
+        }
+        self.editors.remove(self.active_editor);
+        if self.active_editor >= self.editors.len() && !self.editors.is_empty() {
+            self.active_editor = self.editors.len() - 1;
+        }
+        if self.editors.is_empty() {
+            self.focus = Focus::Tree;
         }
     }
 }

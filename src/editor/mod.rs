@@ -8,11 +8,11 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
+use crate::syntax::highlighter::SyntaxHighlighter;
+use crate::theme::Theme;
 use buffer::Buffer;
 use cursor::Cursor;
 use viewport::Viewport;
-use crate::syntax::highlighter::SyntaxHighlighter;
-use crate::theme::Theme;
 
 pub struct EditorPane {
     pub buffer: Buffer,
@@ -57,7 +57,11 @@ impl EditorPane {
     }
 
     pub fn render_themed(&mut self, frame: &mut Frame, area: Rect, focused: bool, theme: &Theme) {
-        let border_color = if focused { theme.border_focused } else { theme.border_unfocused };
+        let border_color = if focused {
+            theme.border_focused
+        } else {
+            theme.border_unfocused
+        };
 
         let lang_name = self.highlighter.lang_name();
         let title = format!(" {} [{}] ", self.buffer.filename(), lang_name);
@@ -79,12 +83,10 @@ impl EditorPane {
         for row in 0..inner.height as usize {
             let line_idx = self.viewport.top_line + row;
             if line_idx >= self.buffer.line_count() {
-                lines.push(Line::from(vec![
-                    Span::styled(
-                        format!("{:>width$} ", "~", width = gutter_w - 1),
-                        Style::default().fg(theme.gutter_fg),
-                    ),
-                ]));
+                lines.push(Line::from(vec![Span::styled(
+                    format!("{:>width$} ", "~", width = gutter_w - 1),
+                    Style::default().fg(theme.gutter_fg),
+                )]));
                 continue;
             }
 
@@ -97,7 +99,9 @@ impl EditorPane {
                 Style::default().fg(theme.gutter_fg)
             };
 
-            let content = self.buffer.line(line_idx)
+            let content = self
+                .buffer
+                .line(line_idx)
                 .map(|l| {
                     let s = l.as_str().unwrap_or("");
                     s.trim_end_matches('\n').trim_end_matches('\r').to_string()
@@ -124,12 +128,13 @@ impl EditorPane {
                 None
             };
 
-            let mut result_spans: Vec<Span> = vec![
-                Span::styled(line_num, match line_bg {
+            let mut result_spans: Vec<Span> = vec![Span::styled(
+                line_num,
+                match line_bg {
                     Some(bg) => gutter_style.bg(bg),
                     None => gutter_style,
-                }),
-            ];
+                },
+            )];
 
             let default_fg = if is_cursor_line { theme.fg } else { theme.fg };
 

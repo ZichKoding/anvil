@@ -1,7 +1,7 @@
+use ropey::Rope;
 use std::fs::{self, File};
 use std::io::{self, BufReader, Write};
 use std::path::{Path, PathBuf};
-use ropey::Rope;
 
 const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB guard
 
@@ -17,7 +17,11 @@ impl Buffer {
         if metadata.len() > MAX_FILE_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("File too large ({} bytes, max {})", metadata.len(), MAX_FILE_SIZE),
+                format!(
+                    "File too large ({} bytes, max {})",
+                    metadata.len(),
+                    MAX_FILE_SIZE
+                ),
             ));
         }
 

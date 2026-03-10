@@ -1,6 +1,6 @@
-use std::path::Path;
-use tree_sitter::{Parser, Tree, Node};
 use ratatui::style::Color;
+use std::path::Path;
+use tree_sitter::{Node, Parser, Tree};
 
 use super::languages::LangId;
 
@@ -72,7 +72,12 @@ impl SyntaxHighlighter {
         self.lang_id.map(|l| l.name()).unwrap_or("Plain Text")
     }
 
-    pub fn highlight_line(&self, source: &str, line_byte_start: usize, line_byte_end: usize) -> Vec<(usize, usize, HighlightGroup)> {
+    pub fn highlight_line(
+        &self,
+        source: &str,
+        line_byte_start: usize,
+        line_byte_end: usize,
+    ) -> Vec<(usize, usize, HighlightGroup)> {
         let mut spans = Vec::new();
 
         let Some(tree) = &self.tree else {
