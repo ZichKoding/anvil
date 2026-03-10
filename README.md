@@ -10,9 +10,19 @@ A lightweight terminal IDE built in Rust. Where iron meets purpose.
 - **RetroTerm theme** - warm amber/green-on-dark terminal aesthetic
 - **Rope-based text buffer** (ropey) for efficient editing of large files
 - **Configurable** via `~/.config/anvil/anvil.toml`
-- **Cross-platform** - Linux (x86_64, aarch64), macOS, Termux
+- **Cross-platform** - Linux (x86_64, aarch64), macOS, Windows, Termux
 
 ## Install
+
+```bash
+# One-liner (Linux & macOS)
+curl -fsSL https://raw.githubusercontent.com/ZichKoding/anvil/main/install.sh | sh
+```
+
+```powershell
+# One-liner (Windows PowerShell)
+irm https://raw.githubusercontent.com/ZichKoding/anvil/main/install.ps1 | iex
+```
 
 ```bash
 # From source
