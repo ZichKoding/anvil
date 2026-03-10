@@ -4,7 +4,7 @@ pub mod viewport;
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
@@ -12,6 +12,7 @@ use buffer::Buffer;
 use cursor::Cursor;
 use viewport::Viewport;
 use crate::syntax::highlighter::SyntaxHighlighter;
+use crate::theme::Theme;
 
 pub struct EditorPane {
     pub buffer: Buffer,
@@ -25,7 +26,6 @@ impl EditorPane {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language_from_path(&buffer.file_path);
 
-        // Parse entire file for initial highlighting
         let source = buffer.rope.to_string();
         highlighter.parse(&source);
 
@@ -56,19 +56,16 @@ impl EditorPane {
             .unwrap_or(0)
     }
 
-    pub fn render(&mut self, frame: &mut Frame, area: Rect, focused: bool) {
-        let border_style = if focused {
-            Style::default().fg(Color::Cyan)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        };
+    pub fn render_themed(&mut self, frame: &mut Frame, area: Rect, focused: bool, theme: &Theme) {
+        let border_color = if focused { theme.border_focused } else { theme.border_unfocused };
 
         let lang_name = self.highlighter.lang_name();
         let title = format!(" {} [{}] ", self.buffer.filename(), lang_name);
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
-            .border_style(border_style);
+            .border_style(Style::default().fg(border_color))
+            .style(Style::default().bg(theme.bg));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -77,7 +74,6 @@ impl EditorPane {
         self.viewport.ensure_cursor_visible(self.cursor.line);
 
         let gutter_w = self.gutter_width();
-        let avail_width = (inner.width as usize).saturating_sub(gutter_w);
 
         let mut lines: Vec<Line> = Vec::with_capacity(inner.height as usize);
         for row in 0..inner.height as usize {
@@ -86,7 +82,7 @@ impl EditorPane {
                 lines.push(Line::from(vec![
                     Span::styled(
                         format!("{:>width$} ", "~", width = gutter_w - 1),
-                        Style::default().fg(Color::DarkGray),
+                        Style::default().fg(theme.gutter_fg),
                     ),
                 ]));
                 continue;
@@ -96,9 +92,9 @@ impl EditorPane {
 
             let line_num = format!("{:>width$} ", line_idx + 1, width = gutter_w - 1);
             let gutter_style = if is_cursor_line {
-                Style::default().fg(Color::Yellow)
+                Style::default().fg(theme.gutter_active_fg)
             } else {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(theme.gutter_fg)
             };
 
             let content = self.buffer.line(line_idx)
@@ -108,14 +104,12 @@ impl EditorPane {
                 })
                 .unwrap_or_default();
 
-            // Get syntax highlighting spans for this line
             let line_byte_start = self.buffer.rope.line_to_byte(line_idx);
             let line_byte_end = if line_idx + 1 < self.buffer.line_count() {
                 self.buffer.rope.line_to_byte(line_idx + 1)
             } else {
                 self.buffer.rope.len_bytes()
             };
-            // Adjust end to exclude newline for display
             let display_len = content.len();
 
             let hl_spans = self.highlighter.highlight_line(
@@ -124,48 +118,58 @@ impl EditorPane {
                 line_byte_end,
             );
 
-            let mut result_spans: Vec<Span> = vec![Span::styled(line_num, gutter_style)];
+            let line_bg = if is_cursor_line {
+                Some(theme.cursor_line_bg)
+            } else {
+                None
+            };
+
+            let mut result_spans: Vec<Span> = vec![
+                Span::styled(line_num, match line_bg {
+                    Some(bg) => gutter_style.bg(bg),
+                    None => gutter_style,
+                }),
+            ];
+
+            let default_fg = if is_cursor_line { theme.fg } else { theme.fg };
 
             if hl_spans.is_empty() {
-                // No syntax info - plain text
-                let display: String = content.chars().take(avail_width).collect();
-                let style = if is_cursor_line {
-                    Style::default().fg(Color::White)
-                } else {
-                    Style::default().fg(Color::Gray)
+                let style = match line_bg {
+                    Some(bg) => Style::default().fg(default_fg).bg(bg),
+                    None => Style::default().fg(default_fg),
                 };
-                result_spans.push(Span::styled(display, style));
+                result_spans.push(Span::styled(content, style));
             } else {
-                // Build colored spans
                 let mut pos = 0;
                 for (start, end, group) in &hl_spans {
                     let start = (*start).min(display_len);
                     let end = (*end).min(display_len);
                     if start > pos {
-                        // Gap before this span
-                        let gap: String = content[pos..start].chars().take(avail_width).collect();
-                        let style = if is_cursor_line {
-                            Style::default().fg(Color::White)
-                        } else {
-                            Style::default().fg(Color::Gray)
+                        let gap = &content[pos..start];
+                        let style = match line_bg {
+                            Some(bg) => Style::default().fg(default_fg).bg(bg),
+                            None => Style::default().fg(default_fg),
                         };
-                        result_spans.push(Span::styled(gap, style));
+                        result_spans.push(Span::styled(gap.to_string(), style));
                     }
                     if start < end {
-                        let text: String = content[start..end].to_string();
-                        result_spans.push(Span::styled(text, Style::default().fg(group.default_color())));
+                        let text = &content[start..end];
+                        let color = theme.color_for_group(*group);
+                        let style = match line_bg {
+                            Some(bg) => Style::default().fg(color).bg(bg),
+                            None => Style::default().fg(color),
+                        };
+                        result_spans.push(Span::styled(text.to_string(), style));
                     }
                     pos = end;
                 }
-                // Remaining text after last span
                 if pos < display_len {
-                    let rest: String = content[pos..].to_string();
-                    let style = if is_cursor_line {
-                        Style::default().fg(Color::White)
-                    } else {
-                        Style::default().fg(Color::Gray)
+                    let rest = &content[pos..];
+                    let style = match line_bg {
+                        Some(bg) => Style::default().fg(default_fg).bg(bg),
+                        None => Style::default().fg(default_fg),
                     };
-                    result_spans.push(Span::styled(rest, style));
+                    result_spans.push(Span::styled(rest.to_string(), style));
                 }
             }
 

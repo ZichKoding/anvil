@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use ratatui::layout::Rect;
 use crate::editor::EditorPane;
 use crate::editor::buffer::Buffer;
+use crate::theme::Theme;
 use crate::tree::FileTree;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +28,7 @@ pub struct App {
     pub editors: Vec<EditorPane>,
     pub active_editor: usize,
     pub status_message: String,
+    pub theme: Theme,
 }
 
 impl App {
@@ -41,6 +43,7 @@ impl App {
             editors: Vec::new(),
             active_editor: 0,
             status_message: String::from("Ready"),
+            theme: Theme::default_theme(),
         }
     }
 

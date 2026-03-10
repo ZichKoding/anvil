@@ -126,17 +126,24 @@ impl FileTree {
         self.nodes.get(idx).is_some_and(|n| n.expanded)
     }
 
-    pub fn render(&mut self, frame: &mut Frame, area: Rect, focused: bool) {
-        let border_style = if focused {
-            Style::default().fg(Color::Cyan)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        };
-
+    pub fn render_themed(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        _focused: bool,
+        border_color: Color,
+        bg: Color,
+        fg: Color,
+        dir_color: Color,
+        file_color: Color,
+        dotfile_color: Color,
+        selected_bg: Color,
+    ) {
         let block = Block::default()
             .title(" Files ")
             .borders(Borders::ALL)
-            .border_style(border_style);
+            .border_style(Style::default().fg(border_color))
+            .style(Style::default().bg(bg));
 
         let items: Vec<ListItem> = self
             .nodes
@@ -151,15 +158,15 @@ impl FileTree {
 
                 let is_dotfile = node.entry.name.starts_with('.');
                 let style = if node.entry.is_dir {
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                    Style::default().fg(dir_color).add_modifier(Modifier::BOLD)
                 } else if is_dotfile {
-                    Style::default().fg(Color::DarkGray)
+                    Style::default().fg(dotfile_color)
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(file_color)
                 };
 
                 let line = Line::from(vec![
-                    Span::raw(indent),
+                    Span::styled(indent, Style::default().fg(fg)),
                     Span::styled(format!("{icon}{}", node.entry.name), style),
                 ]);
                 ListItem::new(line)
@@ -170,7 +177,7 @@ impl FileTree {
             .block(block)
             .highlight_style(
                 Style::default()
-                    .bg(Color::DarkGray)
+                    .bg(selected_bg)
                     .add_modifier(Modifier::BOLD),
             );
 
