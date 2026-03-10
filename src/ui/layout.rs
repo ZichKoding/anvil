@@ -5,10 +5,9 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 
 use crate::app::{App, Focus};
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     let size = frame.area();
 
-    // Main vertical layout: content area + status bar
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -21,7 +20,6 @@ pub fn render(frame: &mut Frame, app: &App) {
     let status_area = main_chunks[1];
 
     if app.sidebar_visible {
-        // Sidebar width: 25% of terminal, clamped to 20..=50 cols
         let sidebar_width = (content_area.width as u32 * 25 / 100)
             .max(20)
             .min(50) as u16;
@@ -35,32 +33,13 @@ pub fn render(frame: &mut Frame, app: &App) {
             ])
             .split(content_area);
 
-        render_tree_pane(frame, h_chunks[0], app.focus == Focus::Tree);
+        app.file_tree.render(frame, h_chunks[0], app.focus == Focus::Tree);
         render_editor_pane(frame, h_chunks[1], app.focus == Focus::Editor);
     } else {
         render_editor_pane(frame, content_area, true);
     }
 
     render_status_bar(frame, status_area, app);
-}
-
-fn render_tree_pane(frame: &mut Frame, area: ratatui::layout::Rect, focused: bool) {
-    let border_style = if focused {
-        Style::default().fg(Color::Cyan)
-    } else {
-        Style::default().fg(Color::DarkGray)
-    };
-
-    let block = Block::default()
-        .title(" Files ")
-        .borders(Borders::ALL)
-        .border_style(border_style);
-
-    let content = Paragraph::new("  (no files loaded)")
-        .style(Style::default().fg(Color::DarkGray))
-        .block(block);
-
-    frame.render_widget(content, area);
 }
 
 fn render_editor_pane(frame: &mut Frame, area: ratatui::layout::Rect, focused: bool) {

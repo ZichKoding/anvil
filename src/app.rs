@@ -1,4 +1,6 @@
+use std::path::PathBuf;
 use ratatui::layout::Rect;
+use crate::tree::FileTree;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
@@ -19,16 +21,18 @@ pub struct App {
     pub mode: Mode,
     pub terminal_size: Rect,
     pub sidebar_visible: bool,
+    pub file_tree: FileTree,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(root: PathBuf) -> Self {
         Self {
             running: true,
             focus: Focus::Tree,
             mode: Mode::Normal,
             terminal_size: Rect::default(),
             sidebar_visible: true,
+            file_tree: FileTree::new(root),
         }
     }
 
