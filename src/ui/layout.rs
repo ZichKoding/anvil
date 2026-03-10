@@ -34,15 +34,27 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             .split(content_area);
 
         app.file_tree.render(frame, h_chunks[0], app.focus == Focus::Tree);
-        render_editor_pane(frame, h_chunks[1], app.focus == Focus::Editor);
+        render_editor_area(frame, app, h_chunks[1]);
     } else {
-        render_editor_pane(frame, content_area, true);
+        render_editor_area(frame, app, content_area);
     }
 
     render_status_bar(frame, status_area, app);
 }
 
-fn render_editor_pane(frame: &mut Frame, area: ratatui::layout::Rect, focused: bool) {
+fn render_editor_area(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
+    let focused = app.focus == Focus::Editor;
+
+    if app.editors.is_empty() {
+        render_welcome(frame, area, focused);
+        return;
+    }
+
+    let idx = app.active_editor;
+    app.editors[idx].render(frame, area, focused);
+}
+
+fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, focused: bool) {
     let border_style = if focused {
         Style::default().fg(Color::Cyan)
     } else {
@@ -54,7 +66,7 @@ fn render_editor_pane(frame: &mut Frame, area: ratatui::layout::Rect, focused: b
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let content = Paragraph::new("  Welcome to Anvil v0.1.0\n\n  Open a file from the tree to begin editing.")
+    let content = Paragraph::new("  Welcome to Anvil v0.1.0\n\n  Open a file from the tree to begin editing.\n\n  Keys:\n    Tab     - switch focus\n    Enter   - open file / expand folder\n    q       - quit\n    Ctrl+B  - toggle sidebar")
         .style(Style::default().fg(Color::Gray))
         .block(block);
 
@@ -68,7 +80,19 @@ fn render_status_bar(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) 
         crate::app::Mode::Command => "COMMAND",
     };
 
-    let status = format!(" Anvil v0.1.0 | {} | Ready ", mode_str);
+    let file_info = if let Some(editor) = app.active_editor() {
+        let cursor = &editor.cursor;
+        format!("{} | {}:{} | {} lines",
+            editor.buffer.filename(),
+            cursor.line + 1,
+            cursor.col + 1,
+            editor.buffer.line_count(),
+        )
+    } else {
+        String::from("No file")
+    };
+
+    let status = format!(" Anvil v0.1.0 | {} | {} | {} ", mode_str, file_info, app.status_message);
     let bar = Paragraph::new(status)
         .style(Style::default()
             .fg(Color::Black)
