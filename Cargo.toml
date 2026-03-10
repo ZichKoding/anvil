@@ -1,0 +1,23 @@
+[package]
+name = "anvil"
+version = "0.1.0"
+edition = "2024"
+description = "A lightweight terminal IDE built in Rust"
+license = "Apache-2.0"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+ropey = "1.6"
+dirs = "6.0"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+unicode-width = "0.2"
+log = "0.4"
+simplelog = "0.12"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
