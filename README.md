@@ -90,6 +90,17 @@ show_line_numbers = true
 tab_size = 4
 ```
 
+## Supported Languages
+
+| Language | Extensions |
+|----------|------------|
+| Rust | `.rs` |
+| Python | `.py`, `.pyi` |
+| JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs` |
+| JSON | `.json`, `.jsonc` |
+| TOML | `.toml` |
+| Markdown | `.md`, `.markdown` |
+
 ## Architecture
 
 Built with the same stack as the Helix editor:
