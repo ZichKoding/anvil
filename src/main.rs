@@ -12,7 +12,7 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event};
+use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -75,7 +75,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
 
         if event::poll(Duration::from_millis(50))? {
             match event::read()? {
-                Event::Key(key) => {
+                Event::Key(key) if key.kind != KeyEventKind::Release => {
                     input::handler::handle_key_event(app, key);
                 }
                 Event::Resize(_, _) => {
