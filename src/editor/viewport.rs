@@ -1,13 +1,19 @@
 pub struct Viewport {
     pub top_line: usize,
     pub height: usize,
+    pub col_offset: usize,
+    pub width: usize,
 }
+
+const H_SCROLL_MARGIN: usize = 6;
 
 impl Viewport {
     pub fn new() -> Self {
         Self {
             top_line: 0,
             height: 0,
+            col_offset: 0,
+            width: 0,
         }
     }
 
@@ -16,6 +22,20 @@ impl Viewport {
             self.top_line = cursor_line;
         } else if cursor_line >= self.top_line + self.height {
             self.top_line = cursor_line - self.height + 1;
+        }
+    }
+
+    pub fn ensure_cursor_col_visible(&mut self, cursor_col: usize) {
+        if self.width == 0 {
+            return;
+        }
+
+        let margin = H_SCROLL_MARGIN.min(self.width / 2);
+
+        if cursor_col < self.col_offset.saturating_add(margin) {
+            self.col_offset = cursor_col.saturating_sub(margin);
+        } else if cursor_col >= self.col_offset + self.width.saturating_sub(margin) {
+            self.col_offset = cursor_col.saturating_sub(self.width.saturating_sub(margin + 1));
         }
     }
 
