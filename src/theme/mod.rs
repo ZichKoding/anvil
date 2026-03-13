@@ -57,6 +57,78 @@ impl Theme {
     }
 
     pub fn default_theme() -> Self {
-        retroterm::retroterm_theme()
+        let theme = retroterm::retroterm_theme();
+        if palette::supports_truecolor() {
+            theme
+        } else {
+            theme.with_fallback_colors()
+        }
+    }
+
+    /// Convert all Rgb colors in this theme to their ANSI fallback equivalents.
+    pub fn with_fallback_colors(self) -> Self {
+        Self {
+            bg: palette::to_256_fallback(self.bg),
+            fg: palette::to_256_fallback(self.fg),
+            sidebar_bg: palette::to_256_fallback(self.sidebar_bg),
+            sidebar_fg: palette::to_256_fallback(self.sidebar_fg),
+            gutter_fg: palette::to_256_fallback(self.gutter_fg),
+            gutter_active_fg: palette::to_256_fallback(self.gutter_active_fg),
+            statusbar_bg: palette::to_256_fallback(self.statusbar_bg),
+            statusbar_fg: palette::to_256_fallback(self.statusbar_fg),
+            border_focused: palette::to_256_fallback(self.border_focused),
+            border_unfocused: palette::to_256_fallback(self.border_unfocused),
+            cursor_line_bg: palette::to_256_fallback(self.cursor_line_bg),
+            keyword: palette::to_256_fallback(self.keyword),
+            string: palette::to_256_fallback(self.string),
+            comment: palette::to_256_fallback(self.comment),
+            function: palette::to_256_fallback(self.function),
+            r#type: palette::to_256_fallback(self.r#type),
+            number: palette::to_256_fallback(self.number),
+            operator: palette::to_256_fallback(self.operator),
+            punctuation: palette::to_256_fallback(self.punctuation),
+            variable: palette::to_256_fallback(self.variable),
+            constant: palette::to_256_fallback(self.constant),
+            property: palette::to_256_fallback(self.property),
+            tree_dir: palette::to_256_fallback(self.tree_dir),
+            tree_file: palette::to_256_fallback(self.tree_file),
+            tree_dotfile: palette::to_256_fallback(self.tree_dotfile),
+            tree_selected_bg: palette::to_256_fallback(self.tree_selected_bg),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::style::Color;
+
+    #[test]
+    fn test_with_fallback_colors_converts_all_rgb_fields() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        let theme = retroterm::retroterm_theme();
+        let fallback = theme.with_fallback_colors();
+
+        // All fields that were Rgb should now be non-Rgb
+        assert!(!matches!(fallback.bg, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.fg, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.keyword, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.string, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.comment, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.function, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.variable, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.constant, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.statusbar_bg, Color::Rgb(_, _, _)));
+    }
+
+    #[test]
+    fn test_color_for_group_returns_correct_colors() {
+        let theme = retroterm::retroterm_theme();
+        assert_eq!(
+            theme.color_for_group(HighlightGroup::Keyword),
+            theme.keyword
+        );
+        assert_eq!(theme.color_for_group(HighlightGroup::String), theme.string);
+        assert_eq!(theme.color_for_group(HighlightGroup::Normal), theme.fg);
     }
 }

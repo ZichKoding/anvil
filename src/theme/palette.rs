@@ -14,7 +14,6 @@ pub fn hex_to_color(hex: &str) -> Color {
     Color::White
 }
 
-#[allow(dead_code)] // TODO: integrate terminal color fallback — see #7
 pub fn supports_truecolor() -> bool {
     std::env::var("COLORTERM")
         .map(|v| v == "truecolor" || v == "24bit")
@@ -22,7 +21,6 @@ pub fn supports_truecolor() -> bool {
 }
 
 /// Map truecolor to nearest 256-color equivalent
-#[allow(dead_code)] // TODO: integrate terminal color fallback — see #7
 pub fn to_256_fallback(color: Color) -> Color {
     match color {
         Color::Rgb(_, _, _) if !supports_truecolor() => {
@@ -33,14 +31,13 @@ pub fn to_256_fallback(color: Color) -> Color {
     }
 }
 
-#[allow(dead_code)] // TODO: integrate terminal color fallback — see #7
-fn approximate_ansi(color: Color) -> Color {
+pub fn approximate_ansi(color: Color) -> Color {
     let Color::Rgb(r, g, b) = color else {
         return color;
     };
 
     // Simple luminance-based mapping to basic 16 colors
-    let lum = (r as u16 * 299 + g as u16 * 587 + b as u16 * 114) / 1000;
+    let lum = (r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000;
     let is_bright = lum > 128;
 
     // Determine dominant channel
@@ -105,6 +102,89 @@ fn approximate_ansi(color: Color) -> Color {
 mod tests {
     use super::*;
     use ratatui::style::Color;
+
+    // --- supports_truecolor ---
+
+    #[test]
+    fn test_supports_truecolor_with_truecolor_env() {
+        unsafe { std::env::set_var("COLORTERM", "truecolor") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("COLORTERM") };
+    }
+
+    #[test]
+    fn test_supports_truecolor_with_24bit_env() {
+        unsafe { std::env::set_var("COLORTERM", "24bit") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("COLORTERM") };
+    }
+
+    #[test]
+    fn test_supports_truecolor_unset_returns_false() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        assert!(!supports_truecolor());
+    }
+
+    // --- to_256_fallback ---
+
+    #[test]
+    fn test_to_256_fallback_passes_through_non_rgb() {
+        assert_eq!(to_256_fallback(Color::Red), Color::Red);
+        assert_eq!(to_256_fallback(Color::Blue), Color::Blue);
+        assert_eq!(to_256_fallback(Color::White), Color::White);
+    }
+
+    #[test]
+    fn test_to_256_fallback_converts_rgb_when_no_truecolor() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        let result = to_256_fallback(Color::Rgb(255, 0, 0));
+        assert!(!matches!(result, Color::Rgb(_, _, _)));
+    }
+
+    #[test]
+    fn test_to_256_fallback_preserves_rgb_when_truecolor() {
+        unsafe { std::env::set_var("COLORTERM", "truecolor") };
+        let result = to_256_fallback(Color::Rgb(255, 0, 0));
+        assert_eq!(result, Color::Rgb(255, 0, 0));
+        unsafe { std::env::remove_var("COLORTERM") };
+    }
+
+    // --- approximate_ansi ---
+
+    #[test]
+    fn test_approximate_ansi_pure_red() {
+        let result = approximate_ansi(Color::Rgb(255, 0, 0));
+        assert!(matches!(result, Color::Red | Color::LightRed));
+    }
+
+    #[test]
+    fn test_approximate_ansi_pure_green() {
+        let result = approximate_ansi(Color::Rgb(0, 255, 0));
+        assert!(matches!(result, Color::Green | Color::LightGreen));
+    }
+
+    #[test]
+    fn test_approximate_ansi_pure_blue() {
+        let result = approximate_ansi(Color::Rgb(0, 0, 255));
+        assert!(matches!(result, Color::Blue | Color::LightBlue));
+    }
+
+    #[test]
+    fn test_approximate_ansi_black() {
+        let result = approximate_ansi(Color::Rgb(0, 0, 0));
+        assert_eq!(result, Color::Black);
+    }
+
+    #[test]
+    fn test_approximate_ansi_white() {
+        let result = approximate_ansi(Color::Rgb(255, 255, 255));
+        assert_eq!(result, Color::White);
+    }
+
+    #[test]
+    fn test_approximate_ansi_non_rgb_passthrough() {
+        assert_eq!(approximate_ansi(Color::Cyan), Color::Cyan);
+    }
 
     // --- Valid hex ---
 
