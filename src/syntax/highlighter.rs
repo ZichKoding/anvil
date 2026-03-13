@@ -1,4 +1,3 @@
-use ratatui::style::Color;
 use std::path::Path;
 use tree_sitter::{Node, Parser, Tree};
 
@@ -9,34 +8,17 @@ pub enum HighlightGroup {
     Keyword,
     String,
     Comment,
+    #[allow(dead_code)] // TODO: map tree-sitter node kinds — see #10
     Function,
     Type,
     Number,
     Operator,
     Punctuation,
     Variable,
+    #[allow(dead_code)] // TODO: map tree-sitter node kinds — see #10
     Constant,
     Property,
     Normal,
-}
-
-impl HighlightGroup {
-    pub fn default_color(&self) -> Color {
-        match self {
-            Self::Keyword => Color::Green,
-            Self::String => Color::Yellow,
-            Self::Comment => Color::DarkGray,
-            Self::Function => Color::Cyan,
-            Self::Type => Color::Magenta,
-            Self::Number => Color::Red,
-            Self::Operator => Color::White,
-            Self::Punctuation => Color::DarkGray,
-            Self::Variable => Color::White,
-            Self::Constant => Color::Red,
-            Self::Property => Color::Cyan,
-            Self::Normal => Color::Gray,
-        }
-    }
 }
 
 pub struct SyntaxHighlighter {
@@ -74,7 +56,6 @@ impl SyntaxHighlighter {
 
     pub fn highlight_line(
         &self,
-        source: &str,
         line_byte_start: usize,
         line_byte_end: usize,
     ) -> Vec<(usize, usize, HighlightGroup)> {
@@ -85,43 +66,41 @@ impl SyntaxHighlighter {
         };
 
         let root = tree.root_node();
-        self.collect_leaf_spans(&root, source, line_byte_start, line_byte_end, &mut spans);
+        collect_leaf_spans(&root, line_byte_start, line_byte_end, &mut spans);
 
         // Sort by start position
         spans.sort_by_key(|(start, _, _)| *start);
         spans
     }
+}
 
-    fn collect_leaf_spans(
-        &self,
-        node: &Node,
-        _source: &str,
-        line_start: usize,
-        line_end: usize,
-        spans: &mut Vec<(usize, usize, HighlightGroup)>,
-    ) {
-        let node_start = node.start_byte();
-        let node_end = node.end_byte();
+fn collect_leaf_spans(
+    node: &Node,
+    line_start: usize,
+    line_end: usize,
+    spans: &mut Vec<(usize, usize, HighlightGroup)>,
+) {
+    let node_start = node.start_byte();
+    let node_end = node.end_byte();
 
-        // Skip nodes entirely outside our line range
-        if node_end <= line_start || node_start >= line_end {
-            return;
+    // Skip nodes entirely outside our line range
+    if node_end <= line_start || node_start >= line_end {
+        return;
+    }
+
+    if node.child_count() == 0 {
+        // Leaf node - map to highlight group
+        let group = node_kind_to_group(node.kind());
+        let span_start = node_start.max(line_start) - line_start;
+        let span_end = node_end.min(line_end) - line_start;
+        if span_start < span_end {
+            spans.push((span_start, span_end, group));
         }
-
-        if node.child_count() == 0 {
-            // Leaf node - map to highlight group
-            let group = node_kind_to_group(node.kind());
-            let span_start = node_start.max(line_start) - line_start;
-            let span_end = node_end.min(line_end) - line_start;
-            if span_start < span_end {
-                spans.push((span_start, span_end, group));
-            }
-        } else {
-            // Recurse into children
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                self.collect_leaf_spans(&child, _source, line_start, line_end, spans);
-            }
+    } else {
+        // Recurse into children
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            collect_leaf_spans(&child, line_start, line_end, spans);
         }
     }
 }

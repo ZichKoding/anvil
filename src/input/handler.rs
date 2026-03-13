@@ -73,17 +73,17 @@ fn handle_tree_keys(app: &mut App, key: KeyEvent) {
                 if let Some(path) = app.file_tree.selected_path().map(|p| p.to_path_buf()) {
                     app.open_file(&path);
                 }
-            } else if let Some(idx) = app.file_tree.state.selected() {
-                if !app.file_tree.is_expanded(idx) {
-                    app.file_tree.toggle_expand();
-                }
+            } else if let Some(idx) = app.file_tree.state.selected()
+                && !app.file_tree.is_expanded(idx)
+            {
+                app.file_tree.toggle_expand();
             }
         }
         KeyCode::Left | KeyCode::Char('h') => {
-            if let Some(idx) = app.file_tree.state.selected() {
-                if app.file_tree.is_expanded(idx) {
-                    app.file_tree.toggle_expand();
-                }
+            if let Some(idx) = app.file_tree.state.selected()
+                && app.file_tree.is_expanded(idx)
+            {
+                app.file_tree.toggle_expand();
             }
         }
         _ => {}
@@ -238,25 +238,23 @@ fn handle_insert_mode(app: &mut App, key: KeyEvent) {
         KeyCode::Esc => {
             if is_vim {
                 app.mode = Mode::Normal;
-                if let Some(editor) = app.active_editor_mut() {
-                    if editor.cursor.col > 0 {
-                        editor.cursor.col -= 1;
-                    }
+                if let Some(editor) = app.active_editor_mut()
+                    && editor.cursor.col > 0
+                {
+                    editor.cursor.col -= 1;
                 }
                 app.status_message = String::from("Ready");
             }
             // In VS Code mode, Esc does nothing (always in insert)
-            return;
         }
         KeyCode::Char('[') if key.modifiers.contains(KeyModifiers::CONTROL) && is_vim => {
             app.mode = Mode::Normal;
-            if let Some(editor) = app.active_editor_mut() {
-                if editor.cursor.col > 0 {
-                    editor.cursor.col -= 1;
-                }
+            if let Some(editor) = app.active_editor_mut()
+                && editor.cursor.col > 0
+            {
+                editor.cursor.col -= 1;
             }
             app.status_message = String::from("Ready");
-            return;
         }
         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             save_current_file(app);

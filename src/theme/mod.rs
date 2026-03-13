@@ -5,8 +5,6 @@ use crate::syntax::highlighter::HighlightGroup;
 use ratatui::style::Color;
 
 pub struct Theme {
-    pub name: String,
-
     // UI Chrome
     pub bg: Color,
     pub fg: Color,
@@ -19,7 +17,6 @@ pub struct Theme {
     pub border_focused: Color,
     pub border_unfocused: Color,
     pub cursor_line_bg: Color,
-    pub selection_bg: Color,
 
     // Syntax groups
     pub keyword: Color,

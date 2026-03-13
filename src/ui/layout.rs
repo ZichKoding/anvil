@@ -43,9 +43,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     if app.sidebar_visible {
         let sidebar_pct = app.config.sidebar.width as u32;
-        let sidebar_width = (content_area.width as u32 * sidebar_pct / 100)
-            .max(20)
-            .min(50) as u16;
+        let sidebar_width = (content_area.width as u32 * sidebar_pct / 100).clamp(20, 50) as u16;
         let sidebar_width = sidebar_width.min(content_area.width.saturating_sub(20));
 
         let h_chunks = Layout::default()
@@ -55,30 +53,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
         let tree_focused = app.focus == Focus::Tree;
         let theme = &app.theme;
-        let border_color = if tree_focused {
-            theme.border_focused
-        } else {
-            theme.border_unfocused
-        };
-        let sidebar_bg = theme.sidebar_bg;
-        let sidebar_fg = theme.sidebar_fg;
-        let tree_dir = theme.tree_dir;
-        let tree_file = theme.tree_file;
-        let tree_dotfile = theme.tree_dotfile;
-        let tree_selected_bg = theme.tree_selected_bg;
 
-        app.file_tree.render_themed(
-            frame,
-            h_chunks[0],
-            tree_focused,
-            border_color,
-            sidebar_bg,
-            sidebar_fg,
-            tree_dir,
-            tree_file,
-            tree_dotfile,
-            tree_selected_bg,
-        );
+        app.file_tree
+            .render_themed(frame, h_chunks[0], tree_focused, theme);
         render_editor_area(frame, app, h_chunks[1]);
     } else {
         render_editor_area(frame, app, content_area);
@@ -96,8 +73,9 @@ fn render_editor_area(frame: &mut Frame, app: &mut App, area: ratatui::layout::R
     }
 
     let theme = &app.theme;
-    let idx = app.active_editor;
-    app.editors[idx].render_themed(frame, area, focused, theme);
+    if let Some(editor) = app.editors.get_mut(app.active_editor) {
+        editor.render_themed(frame, area, focused, theme);
+    }
 }
 
 fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
@@ -124,7 +102,7 @@ fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     };
 
     let content = format!(
-        "  Welcome to Anvil v0.1.0\n\n  A lightweight terminal IDE\n\n{}\n\n  Keys:\n    Tab     - switch focus\n    Enter   - open file / expand folder\n    Ctrl+B  - toggle sidebar\n    Ctrl+S  - save file",
+        "  Welcome to Anvil v0.2.0\n\n  A lightweight terminal IDE\n\n{}\n\n  Keys:\n    Tab     - switch focus\n    Enter   - open file / expand folder\n    Ctrl+B  - toggle sidebar\n    Ctrl+S  - save file",
         mode_info
     );
 

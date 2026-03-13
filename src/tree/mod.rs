@@ -2,7 +2,7 @@ pub mod fs_walker;
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use std::path::{Path, PathBuf};
@@ -65,18 +65,18 @@ impl FileTree {
     }
 
     pub fn move_up(&mut self) {
-        if let Some(selected) = self.state.selected() {
-            if selected > 0 {
-                self.state.select(Some(selected - 1));
-            }
+        if let Some(selected) = self.state.selected()
+            && selected > 0
+        {
+            self.state.select(Some(selected - 1));
         }
     }
 
     pub fn move_down(&mut self) {
-        if let Some(selected) = self.state.selected() {
-            if selected + 1 < self.nodes.len() {
-                self.state.select(Some(selected + 1));
-            }
+        if let Some(selected) = self.state.selected()
+            && selected + 1 < self.nodes.len()
+        {
+            self.state.select(Some(selected + 1));
         }
     }
 
@@ -130,20 +130,19 @@ impl FileTree {
         &mut self,
         frame: &mut Frame,
         area: Rect,
-        _focused: bool,
-        border_color: Color,
-        bg: Color,
-        fg: Color,
-        dir_color: Color,
-        file_color: Color,
-        dotfile_color: Color,
-        selected_bg: Color,
+        focused: bool,
+        theme: &crate::theme::Theme,
     ) {
+        let border_color = if focused {
+            theme.border_focused
+        } else {
+            theme.border_unfocused
+        };
         let block = Block::default()
             .title(" Files ")
             .borders(Borders::ALL)
             .border_style(Style::default().fg(border_color))
-            .style(Style::default().bg(bg));
+            .style(Style::default().bg(theme.sidebar_bg));
 
         let items: Vec<ListItem> = self
             .nodes
@@ -158,15 +157,17 @@ impl FileTree {
 
                 let is_dotfile = node.entry.name.starts_with('.');
                 let style = if node.entry.is_dir {
-                    Style::default().fg(dir_color).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(theme.tree_dir)
+                        .add_modifier(Modifier::BOLD)
                 } else if is_dotfile {
-                    Style::default().fg(dotfile_color)
+                    Style::default().fg(theme.tree_dotfile)
                 } else {
-                    Style::default().fg(file_color)
+                    Style::default().fg(theme.tree_file)
                 };
 
                 let line = Line::from(vec![
-                    Span::styled(indent, Style::default().fg(fg)),
+                    Span::styled(indent, Style::default().fg(theme.sidebar_fg)),
                     Span::styled(format!("{icon}{}", node.entry.name), style),
                 ]);
                 ListItem::new(line)
@@ -175,7 +176,7 @@ impl FileTree {
 
         let list = List::new(items).block(block).highlight_style(
             Style::default()
-                .bg(selected_bg)
+                .bg(theme.tree_selected_bg)
                 .add_modifier(Modifier::BOLD),
         );
 
