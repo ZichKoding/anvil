@@ -6,7 +6,10 @@ A lightweight terminal IDE built in Rust. Where iron meets purpose.
 
 - **File tree sidebar** with lazy directory loading and expand/collapse
 - **Syntax highlighting** via tree-sitter (Rust, Python, JavaScript, JSON, TOML, Markdown)
-- **Vim-style keybindings** (Normal/Insert modes) with VS Code mode option
+- **Vim-style keybindings** (Normal/Insert/Command modes) with VS Code mode option
+- **Command mode** — `:w` save, `:q` quit, `:wq` save+quit, `:q!` force quit with unsaved changes guard
+- **Terminal color fallback** — Automatic ANSI 256-color approximation for non-truecolor terminals
+- **Context-aware highlighting** — Functions and constants classified via tree-sitter parent node analysis
 - **RetroTerm theme** - warm amber/green-on-dark terminal aesthetic
 - **Rope-based text buffer** (ropey) for efficient editing of large files
 - **Configurable** via `~/.config/anvil/anvil.toml`
@@ -67,6 +70,12 @@ anvil /path/to/project
 | `Ctrl+W` | Any | Close current tab |
 | `Ctrl+C` | Any | Quit |
 | `q` | Normal | Quit |
+| `:` | Normal | Enter command mode |
+| `:w` | Command | Save file |
+| `:q` | Command | Quit (fails if unsaved changes) |
+| `:wq` | Command | Save and quit |
+| `:q!` | Command | Force quit (discard changes) |
+| `Esc` | Command | Cancel command |
 
 ### VS Code Mode
 

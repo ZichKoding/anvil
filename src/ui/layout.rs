@@ -94,7 +94,7 @@ fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 
     let mode_info = match app.config.general.keybinding_mode {
         crate::config::keybindings::KeybindingMode::Vim => {
-            "  Mode: Vim (i=insert, Esc=normal, :w=save)"
+            "  Mode: Vim (i=insert, Esc=normal, :w=save, :q=quit, :wq=save+quit, :q!=force quit)"
         }
         crate::config::keybindings::KeybindingMode::Vscode => {
             "  Mode: VS Code (Ctrl+S=save, Ctrl+Q=quit)"
@@ -102,7 +102,7 @@ fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     };
 
     let content = format!(
-        "  Welcome to Anvil v0.2.0\n\n  A lightweight terminal IDE\n\n{}\n\n  Keys:\n    Tab     - switch focus\n    Enter   - open file / expand folder\n    Ctrl+B  - toggle sidebar\n    Ctrl+S  - save file",
+        "  Welcome to Anvil v0.3.0\n\n  A lightweight terminal IDE\n\n{}\n\n  Keys:\n    Tab     - switch focus\n    Enter   - open file / expand folder\n    Ctrl+B  - toggle sidebar\n    Ctrl+S  - save file",
         mode_info
     );
 
@@ -114,6 +114,29 @@ fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 }
 
 fn render_status_bar(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    if app.mode == crate::app::Mode::Command {
+        // Render command line
+        let command_line = format!(":{}", app.command_buffer);
+        let bar = Paragraph::new(command_line).style(
+            Style::default()
+                .fg(app.theme.statusbar_fg)
+                .bg(app.theme.statusbar_bg)
+                .add_modifier(Modifier::BOLD),
+        );
+        frame.render_widget(bar, area);
+
+        // Position cursor at end of command buffer
+        let cursor_x = area
+            .x
+            .saturating_add(1)
+            .saturating_add(app.command_buffer.chars().count().min(u16::MAX as usize) as u16);
+        let cursor_y = area.y;
+        if cursor_x < area.x + area.width {
+            frame.set_cursor_position((cursor_x, cursor_y));
+        }
+        return;
+    }
+
     let mode_str = match app.mode {
         crate::app::Mode::Normal => "NORMAL",
         crate::app::Mode::Insert => "INSERT",
