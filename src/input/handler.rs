@@ -1,5 +1,6 @@
 use crate::app::{App, Focus, Mode};
 use crate::config::keybindings::KeybindingMode;
+use crate::input::command::{self, CommandResult};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub fn handle_key_event(app: &mut App, key: KeyEvent) {
@@ -34,6 +35,12 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) {
         _ => {}
     }
 
+    // Handle command mode before focus dispatch (works regardless of focus)
+    if app.mode == Mode::Command {
+        handle_command_mode(app, key);
+        return;
+    }
+
     match app.focus {
         Focus::Tree => handle_tree_keys(app, key),
         Focus::Editor => {
@@ -42,7 +49,7 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) {
                 match app.mode {
                     Mode::Normal => handle_normal_mode(app, key),
                     Mode::Insert => handle_insert_mode(app, key),
-                    Mode::Command => {}
+                    Mode::Command => {} // handled above
                 }
             } else {
                 // VS Code mode: always insert
@@ -92,6 +99,11 @@ fn handle_tree_keys(app: &mut App, key: KeyEvent) {
 
 fn handle_normal_mode(app: &mut App, key: KeyEvent) {
     match key.code {
+        KeyCode::Char(':') => {
+            app.mode = Mode::Command;
+            app.command_buffer.clear();
+            app.status_message = String::from(":");
+        }
         KeyCode::Char('q') => app.quit(),
         KeyCode::Tab => app.toggle_focus(),
         KeyCode::Char('i') => {
@@ -351,6 +363,43 @@ fn handle_insert_mode(app: &mut App, key: KeyEvent) {
     }
 }
 
+fn handle_command_mode(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc => {
+            app.mode = Mode::Normal;
+            app.command_buffer.clear();
+            app.status_message = String::from("Ready");
+        }
+        KeyCode::Enter => {
+            let input = app.command_buffer.clone();
+            app.mode = Mode::Normal;
+            let result = command::execute_command(&input, app);
+            match result {
+                CommandResult::Ok => {}
+                CommandResult::Quit => app.quit(),
+                CommandResult::Error(msg) => {
+                    app.status_message = msg;
+                }
+            }
+            app.command_buffer.clear();
+        }
+        KeyCode::Backspace => {
+            if app.command_buffer.is_empty() {
+                app.mode = Mode::Normal;
+                app.status_message = String::from("Ready");
+            } else {
+                app.command_buffer.pop();
+                app.status_message = format!(":{}", app.command_buffer);
+            }
+        }
+        KeyCode::Char(ch) => {
+            app.command_buffer.push(ch);
+            app.status_message = format!(":{}", app.command_buffer);
+        }
+        _ => {}
+    }
+}
+
 fn save_current_file(app: &mut App) {
     if let Some(editor) = app.active_editor_mut() {
         match editor.buffer.save() {
@@ -367,4 +416,135 @@ fn save_current_file(app: &mut App) {
 fn reparse_highlighter(editor: &mut crate::editor::EditorPane) {
     let source = editor.buffer.rope.to_string();
     editor.highlighter.parse(&source);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::{App, Mode};
+    use crate::editor::EditorPane;
+    use crate::editor::buffer::Buffer;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use ropey::Rope;
+    use std::path::PathBuf;
+
+    fn make_test_app() -> App {
+        App::new(PathBuf::from("."))
+    }
+
+    fn make_test_buffer(modified: bool) -> Buffer {
+        Buffer {
+            rope: Rope::from_str("test content"),
+            file_path: PathBuf::from("test.txt"),
+            modified,
+        }
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    // --- Mode transitions ---
+
+    #[test]
+    fn test_colon_enters_command_mode() {
+        let mut app = make_test_app();
+        app.mode = Mode::Normal;
+        app.focus = crate::app::Focus::Editor;
+        handle_key_event(&mut app, key(KeyCode::Char(':')));
+        assert_eq!(app.mode, Mode::Command);
+        assert!(app.command_buffer.is_empty());
+    }
+
+    #[test]
+    fn test_esc_exits_command_mode() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        handle_key_event(&mut app, key(KeyCode::Esc));
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn test_enter_exits_command_mode() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        app.command_buffer = String::from("q!");
+        handle_key_event(&mut app, key(KeyCode::Enter));
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    // --- Command buffer typing ---
+
+    #[test]
+    fn test_typing_appends_to_command_buffer() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        handle_key_event(&mut app, key(KeyCode::Char('w')));
+        assert_eq!(app.command_buffer, "w");
+        handle_key_event(&mut app, key(KeyCode::Char('q')));
+        assert_eq!(app.command_buffer, "wq");
+    }
+
+    #[test]
+    fn test_backspace_removes_from_command_buffer() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        app.command_buffer = String::from("wq");
+        handle_key_event(&mut app, key(KeyCode::Backspace));
+        assert_eq!(app.command_buffer, "w");
+    }
+
+    #[test]
+    fn test_backspace_empty_buffer_exits_command_mode() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        app.command_buffer.clear();
+        handle_key_event(&mut app, key(KeyCode::Backspace));
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    // --- Command execution via Enter ---
+
+    #[test]
+    fn test_enter_q_bang_quits() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        app.command_buffer = String::from("q!");
+        handle_key_event(&mut app, key(KeyCode::Enter));
+        assert!(!app.running);
+    }
+
+    #[test]
+    fn test_enter_q_with_dirty_buffer_shows_error() {
+        let mut app = make_test_app();
+        let buf = make_test_buffer(true);
+        app.editors.push(EditorPane::new(buf));
+        app.mode = Mode::Command;
+        app.command_buffer = String::from("q");
+        handle_key_event(&mut app, key(KeyCode::Enter));
+        assert!(app.running); // Should NOT quit
+        assert!(app.status_message.contains("Unsaved changes"));
+    }
+
+    #[test]
+    fn test_enter_unknown_command_shows_error() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        app.command_buffer = String::from("xyz");
+        handle_key_event(&mut app, key(KeyCode::Enter));
+        assert!(app.running);
+        assert!(app.status_message.contains("Unknown command"));
+    }
+
+    // --- Command mode works regardless of focus ---
+
+    #[test]
+    fn test_command_mode_works_with_tree_focus() {
+        let mut app = make_test_app();
+        app.focus = crate::app::Focus::Tree;
+        app.mode = Mode::Command;
+        app.command_buffer = String::from("q!");
+        handle_key_event(&mut app, key(KeyCode::Enter));
+        assert!(!app.running);
+    }
 }

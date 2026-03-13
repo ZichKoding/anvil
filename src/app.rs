@@ -17,7 +17,6 @@ pub enum Focus {
 pub enum Mode {
     Normal,
     Insert,
-    #[allow(dead_code)] // TODO: implement command mode — see #8
     Command,
 }
 
@@ -31,6 +30,7 @@ pub struct App {
     pub editors: Vec<EditorPane>,
     pub active_editor: usize,
     pub status_message: String,
+    pub command_buffer: String,
     pub theme: Theme,
     pub config: Config,
 }
@@ -55,6 +55,7 @@ impl App {
             editors: Vec::new(),
             active_editor: 0,
             status_message: String::from("Ready"),
+            command_buffer: String::new(),
             theme: Theme::default_theme(),
             config,
         }
