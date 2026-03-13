@@ -8,14 +8,12 @@ pub enum HighlightGroup {
     Keyword,
     String,
     Comment,
-    #[allow(dead_code)] // TODO: map tree-sitter node kinds — see #10
     Function,
     Type,
     Number,
     Operator,
     Punctuation,
     Variable,
-    #[allow(dead_code)] // TODO: map tree-sitter node kinds — see #10
     Constant,
     Property,
     Normal,
@@ -89,8 +87,9 @@ fn collect_leaf_spans(
     }
 
     if node.child_count() == 0 {
-        // Leaf node - map to highlight group
-        let group = node_kind_to_group(node.kind());
+        // Leaf node - map to highlight group, passing parent kind for context
+        let parent_kind = node.parent().map(|p| p.kind());
+        let group = node_kind_to_group(node.kind(), parent_kind);
         let span_start = node_start.max(line_start) - line_start;
         let span_end = node_end.min(line_end) - line_start;
         if span_start < span_end {
@@ -105,7 +104,7 @@ fn collect_leaf_spans(
     }
 }
 
-fn node_kind_to_group(kind: &str) -> HighlightGroup {
+fn node_kind_to_group(kind: &str, parent_kind: Option<&str>) -> HighlightGroup {
     match kind {
         // Keywords
         "fn" | "let" | "mut" | "pub" | "use" | "mod" | "struct" | "enum" | "impl" |
@@ -139,8 +138,14 @@ fn node_kind_to_group(kind: &str) -> HighlightGroup {
         "type_identifier" | "primitive_type" | "generic_type" |
         "scoped_type_identifier" => HighlightGroup::Type,
 
-        // Functions
-        "identifier" => HighlightGroup::Variable,
+        // Identifiers — context-aware classification
+        "identifier" => match parent_kind {
+            Some("call_expression" | "function_item" | "function_definition" | "function_declaration") => {
+                HighlightGroup::Function
+            }
+            Some("const_item") => HighlightGroup::Constant,
+            _ => HighlightGroup::Variable,
+        },
         "field_identifier" | "property_identifier" => HighlightGroup::Property,
 
         // Operators
@@ -152,5 +157,150 @@ fn node_kind_to_group(kind: &str) -> HighlightGroup {
         "(" | ")" | "[" | "]" | "{" | "}" | "," | ";" | ":" | "." => HighlightGroup::Punctuation,
 
         _ => HighlightGroup::Normal,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- node_kind_to_group: identifier context-aware classification ---
+
+    #[test]
+    fn test_identifier_in_call_expression_is_function() {
+        assert!(matches!(
+            node_kind_to_group("identifier", Some("call_expression")),
+            HighlightGroup::Function
+        ));
+    }
+
+    #[test]
+    fn test_identifier_in_function_item_is_function() {
+        assert!(matches!(
+            node_kind_to_group("identifier", Some("function_item")),
+            HighlightGroup::Function
+        ));
+    }
+
+    #[test]
+    fn test_identifier_in_function_definition_is_function() {
+        assert!(matches!(
+            node_kind_to_group("identifier", Some("function_definition")),
+            HighlightGroup::Function
+        ));
+    }
+
+    #[test]
+    fn test_identifier_in_function_declaration_is_function() {
+        assert!(matches!(
+            node_kind_to_group("identifier", Some("function_declaration")),
+            HighlightGroup::Function
+        ));
+    }
+
+    #[test]
+    fn test_identifier_in_const_item_is_constant() {
+        assert!(matches!(
+            node_kind_to_group("identifier", Some("const_item")),
+            HighlightGroup::Constant
+        ));
+    }
+
+    #[test]
+    fn test_identifier_with_no_parent_is_variable() {
+        assert!(matches!(
+            node_kind_to_group("identifier", None),
+            HighlightGroup::Variable
+        ));
+    }
+
+    #[test]
+    fn test_identifier_in_let_declaration_is_variable() {
+        assert!(matches!(
+            node_kind_to_group("identifier", Some("let_declaration")),
+            HighlightGroup::Variable
+        ));
+    }
+
+    // --- node_kind_to_group: existing mappings unchanged ---
+
+    #[test]
+    fn test_keyword_fn() {
+        assert!(matches!(
+            node_kind_to_group("fn", None),
+            HighlightGroup::Keyword
+        ));
+    }
+
+    #[test]
+    fn test_keyword_let() {
+        assert!(matches!(
+            node_kind_to_group("let", None),
+            HighlightGroup::Keyword
+        ));
+    }
+
+    #[test]
+    fn test_string_literal() {
+        assert!(matches!(
+            node_kind_to_group("string_literal", None),
+            HighlightGroup::String
+        ));
+    }
+
+    #[test]
+    fn test_line_comment() {
+        assert!(matches!(
+            node_kind_to_group("line_comment", None),
+            HighlightGroup::Comment
+        ));
+    }
+
+    #[test]
+    fn test_integer_literal() {
+        assert!(matches!(
+            node_kind_to_group("integer_literal", None),
+            HighlightGroup::Number
+        ));
+    }
+
+    #[test]
+    fn test_type_identifier() {
+        assert!(matches!(
+            node_kind_to_group("type_identifier", None),
+            HighlightGroup::Type
+        ));
+    }
+
+    #[test]
+    fn test_field_identifier_is_property() {
+        assert!(matches!(
+            node_kind_to_group("field_identifier", None),
+            HighlightGroup::Property
+        ));
+    }
+
+    #[test]
+    fn test_plus_operator() {
+        assert!(matches!(
+            node_kind_to_group("+", None),
+            HighlightGroup::Operator
+        ));
+    }
+
+    #[test]
+    fn test_paren_punctuation() {
+        assert!(matches!(
+            node_kind_to_group("(", None),
+            HighlightGroup::Punctuation
+        ));
+    }
+
+    #[test]
+    fn test_unknown_kind_is_normal() {
+        assert!(matches!(
+            node_kind_to_group("some_unknown_kind", None),
+            HighlightGroup::Normal
+        ));
     }
 }
