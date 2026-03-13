@@ -26,9 +26,7 @@ cargo install --path .
 CARGO_TARGET_DIR=/tmp/anvil-target cargo build --release
 ```
 
-### Pre-built binaries (coming soon)
-
-> Binary releases are not yet available. Once the first GitHub Release is published, these one-liners will work:
+### Pre-built binaries
 
 ```bash
 # Linux & macOS
