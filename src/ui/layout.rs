@@ -94,7 +94,7 @@ fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 
     let mode_info = match app.config.general.keybinding_mode {
         crate::config::keybindings::KeybindingMode::Vim => {
-            "  Mode: Vim (i=insert, Esc=normal, :w=save)"
+            "  Mode: Vim (i=insert, Esc=normal, :w=save, :q=quit)"
         }
         crate::config::keybindings::KeybindingMode::Vscode => {
             "  Mode: VS Code (Ctrl+S=save, Ctrl+Q=quit)"
@@ -114,6 +114,26 @@ fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 }
 
 fn render_status_bar(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    if app.mode == crate::app::Mode::Command {
+        // Render command line
+        let command_line = format!(":{}", app.command_buffer);
+        let bar = Paragraph::new(command_line).style(
+            Style::default()
+                .fg(app.theme.statusbar_fg)
+                .bg(app.theme.statusbar_bg)
+                .add_modifier(Modifier::BOLD),
+        );
+        frame.render_widget(bar, area);
+
+        // Position cursor at end of command buffer
+        let cursor_x = area.x + 1 + app.command_buffer.len() as u16;
+        let cursor_y = area.y;
+        if cursor_x < area.x + area.width {
+            frame.set_cursor_position((cursor_x, cursor_y));
+        }
+        return;
+    }
+
     let mode_str = match app.mode {
         crate::app::Mode::Normal => "NORMAL",
         crate::app::Mode::Insert => "INSERT",
