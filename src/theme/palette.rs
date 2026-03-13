@@ -2,18 +2,19 @@ use ratatui::style::Color;
 
 pub fn hex_to_color(hex: &str) -> Color {
     let hex = hex.trim_start_matches('#');
-    if hex.len() == 6 {
-        if let (Ok(r), Ok(g), Ok(b)) = (
+    if hex.len() == 6
+        && let (Ok(r), Ok(g), Ok(b)) = (
             u8::from_str_radix(&hex[0..2], 16),
             u8::from_str_radix(&hex[2..4], 16),
             u8::from_str_radix(&hex[4..6], 16),
-        ) {
-            return Color::Rgb(r, g, b);
-        }
+        )
+    {
+        return Color::Rgb(r, g, b);
     }
     Color::White
 }
 
+#[allow(dead_code)] // TODO: integrate terminal color fallback — see #7
 pub fn supports_truecolor() -> bool {
     std::env::var("COLORTERM")
         .map(|v| v == "truecolor" || v == "24bit")
@@ -21,6 +22,7 @@ pub fn supports_truecolor() -> bool {
 }
 
 /// Map truecolor to nearest 256-color equivalent
+#[allow(dead_code)] // TODO: integrate terminal color fallback — see #7
 pub fn to_256_fallback(color: Color) -> Color {
     match color {
         Color::Rgb(_, _, _) if !supports_truecolor() => {
@@ -31,6 +33,7 @@ pub fn to_256_fallback(color: Color) -> Color {
     }
 }
 
+#[allow(dead_code)] // TODO: integrate terminal color fallback — see #7
 fn approximate_ansi(color: Color) -> Color {
     let Color::Rgb(r, g, b) = color else {
         return color;
@@ -95,5 +98,77 @@ fn approximate_ansi(color: Color) -> Color {
         Color::Gray
     } else {
         Color::DarkGray
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::style::Color;
+
+    // --- Valid hex ---
+
+    #[test]
+    fn test_hex_to_color_with_hash_prefix() {
+        assert_eq!(hex_to_color("#ff0000"), Color::Rgb(255, 0, 0));
+    }
+
+    #[test]
+    fn test_hex_to_color_without_hash_prefix() {
+        assert_eq!(hex_to_color("00ff00"), Color::Rgb(0, 255, 0));
+    }
+
+    #[test]
+    fn test_hex_to_color_blue() {
+        assert_eq!(hex_to_color("#0000ff"), Color::Rgb(0, 0, 255));
+    }
+
+    #[test]
+    fn test_hex_to_color_white() {
+        assert_eq!(hex_to_color("#ffffff"), Color::Rgb(255, 255, 255));
+    }
+
+    #[test]
+    fn test_hex_to_color_black() {
+        assert_eq!(hex_to_color("#000000"), Color::Rgb(0, 0, 0));
+    }
+
+    #[test]
+    fn test_hex_to_color_mixed_case() {
+        // uppercase hex digits
+        assert_eq!(hex_to_color("#FF8800"), Color::Rgb(255, 136, 0));
+    }
+
+    #[test]
+    fn test_hex_to_color_arbitrary_color() {
+        assert_eq!(hex_to_color("#1a2b3c"), Color::Rgb(0x1a, 0x2b, 0x3c));
+    }
+
+    // --- Invalid hex -> fallback to White ---
+
+    #[test]
+    fn test_hex_to_color_too_short_returns_white() {
+        assert_eq!(hex_to_color("#fff"), Color::White);
+    }
+
+    #[test]
+    fn test_hex_to_color_empty_string_returns_white() {
+        assert_eq!(hex_to_color(""), Color::White);
+    }
+
+    #[test]
+    fn test_hex_to_color_invalid_chars_returns_white() {
+        assert_eq!(hex_to_color("#zzzzzz"), Color::White);
+    }
+
+    #[test]
+    fn test_hex_to_color_too_long_returns_white() {
+        assert_eq!(hex_to_color("#ff000000"), Color::White);
+    }
+
+    #[test]
+    fn test_hex_to_color_seven_chars_no_hash_returns_white() {
+        // 7 chars without leading #: len after strip is 7, not 6
+        assert_eq!(hex_to_color("ff00000"), Color::White);
     }
 }

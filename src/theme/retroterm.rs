@@ -3,8 +3,6 @@ use super::palette::hex_to_color;
 
 pub fn retroterm_theme() -> Theme {
     Theme {
-        name: "RetroTerm".to_string(),
-
         // UI Chrome
         bg: hex_to_color("#1a1a2e"),
         fg: hex_to_color("#e0c097"),
@@ -17,7 +15,6 @@ pub fn retroterm_theme() -> Theme {
         border_focused: hex_to_color("#00d4ff"),
         border_unfocused: hex_to_color("#333355"),
         cursor_line_bg: hex_to_color("#222244"),
-        selection_bg: hex_to_color("#3a3a5c"),
 
         // Syntax
         keyword: hex_to_color("#00ff9f"),

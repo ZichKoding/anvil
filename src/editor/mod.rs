@@ -122,7 +122,6 @@ impl EditorPane {
             let full_len = full_content.len();
 
             let hl_spans = self.highlighter.highlight_line(
-                &self.buffer.rope.to_string(),
                 line_byte_start,
                 line_byte_end,
             );
@@ -141,7 +140,7 @@ impl EditorPane {
                 },
             )];
 
-            let default_fg = if is_cursor_line { theme.fg } else { theme.fg };
+            let default_fg = theme.fg;
 
             // Slice content to the visible horizontal window
             let slice_start = col_offset.min(full_len);

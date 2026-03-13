@@ -17,6 +17,7 @@ pub enum Focus {
 pub enum Mode {
     Normal,
     Insert,
+    #[allow(dead_code)] // TODO: implement command mode — see #8
     Command,
 }
 
