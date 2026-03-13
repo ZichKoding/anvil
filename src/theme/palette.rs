@@ -61,16 +61,16 @@ pub fn supports_truecolor() -> bool {
     false
 }
 
-/// Convert an Rgb color to its nearest ANSI equivalent unconditionally.
+/// Convert an Rgb color to its nearest 256-color indexed equivalent.
 /// Call site is responsible for checking `supports_truecolor()` before invoking.
 pub fn to_256_fallback(color: Color) -> Color {
     match color {
-        Color::Rgb(_, _, _) => approximate_ansi(color),
+        Color::Rgb(_, _, _) => to_256_indexed(color),
         _ => color,
     }
 }
 
-pub fn approximate_ansi(color: Color) -> Color {
+fn to_256_indexed(color: Color) -> Color {
     let Color::Rgb(r, g, b) = color else {
         return color;
     };
@@ -79,16 +79,16 @@ pub fn approximate_ansi(color: Color) -> Color {
     let min_ch = r.min(g).min(b);
 
     // Near-gray: all channels within 10 of each other
-    if max_ch - min_ch <= 10 {
+    if (max_ch as u16 - min_ch as u16) <= 10 {
         let avg = (r as u16 + g as u16 + b as u16) / 3;
-        if avg < 4 {
-            return Color::Indexed(16); // cube black
+        if avg < 8 {
+            return Color::Indexed(16); // below ramp floor: cube black
         }
-        if avg > 246 {
-            return Color::Indexed(231); // cube white
+        if avg > 238 {
+            return Color::Indexed(231); // above ramp ceiling: cube white
         }
         // Grayscale ramp: indices 232..=255 map to grays 8, 18, 28, ..., 238
-        let idx = ((avg as f64 - 8.0) / 10.0).round().clamp(0.0, 23.0) as u8;
+        let idx = ((avg as f64 - 8.0) / 10.0).round() as u8;
         return Color::Indexed(232 + idx);
     }
 
@@ -264,65 +264,65 @@ mod tests {
         assert!(!matches!(result, Color::Rgb(_, _, _)));
     }
 
-    // --- approximate_ansi ---
+    // --- to_256_indexed ---
 
     #[test]
-    fn test_approximate_ansi_pure_red() {
-        let result = approximate_ansi(Color::Rgb(255, 0, 0));
+    fn test_to_256_indexed_pure_red() {
+        let result = to_256_indexed(Color::Rgb(255, 0, 0));
         assert_eq!(result, Color::Indexed(196));
     }
 
     #[test]
-    fn test_approximate_ansi_pure_green() {
-        let result = approximate_ansi(Color::Rgb(0, 255, 0));
+    fn test_to_256_indexed_pure_green() {
+        let result = to_256_indexed(Color::Rgb(0, 255, 0));
         assert_eq!(result, Color::Indexed(46));
     }
 
     #[test]
-    fn test_approximate_ansi_pure_blue() {
-        let result = approximate_ansi(Color::Rgb(0, 0, 255));
+    fn test_to_256_indexed_pure_blue() {
+        let result = to_256_indexed(Color::Rgb(0, 0, 255));
         assert_eq!(result, Color::Indexed(21));
     }
 
     #[test]
-    fn test_approximate_ansi_black() {
-        let result = approximate_ansi(Color::Rgb(0, 0, 0));
+    fn test_to_256_indexed_black() {
+        let result = to_256_indexed(Color::Rgb(0, 0, 0));
         assert_eq!(result, Color::Indexed(16));
     }
 
     #[test]
-    fn test_approximate_ansi_white() {
-        let result = approximate_ansi(Color::Rgb(255, 255, 255));
+    fn test_to_256_indexed_white() {
+        let result = to_256_indexed(Color::Rgb(255, 255, 255));
         assert_eq!(result, Color::Indexed(231));
     }
 
     #[test]
-    fn test_approximate_ansi_non_rgb_passthrough() {
-        assert_eq!(approximate_ansi(Color::Cyan), Color::Cyan);
+    fn test_to_256_indexed_non_rgb_passthrough() {
+        assert_eq!(to_256_indexed(Color::Cyan), Color::Cyan);
     }
 
     // --- 256-color regression tests ---
 
     #[test]
-    fn test_approximate_ansi_cursor_colors_distinguishable() {
+    fn test_to_256_indexed_cursor_colors_distinguishable() {
         // Regression: cursor (dark bg) and text (light fg) must not map to the same index.
         // Before the fix both collapsed to the same 16-color value, making the cursor invisible.
-        let bg = approximate_ansi(Color::Rgb(26, 26, 46));
-        let fg = approximate_ansi(Color::Rgb(224, 192, 151));
+        let bg = to_256_indexed(Color::Rgb(26, 26, 46));
+        let fg = to_256_indexed(Color::Rgb(224, 192, 151));
         assert_ne!(bg, fg, "cursor background and foreground must map to different indexed colors");
     }
 
     #[test]
-    fn test_approximate_ansi_cube_mixed() {
+    fn test_to_256_indexed_cube_mixed() {
         // Rgb(0, 95, 135): r_idx=0, g_idx=2, b_idx=3 => 16 + 36*0 + 6*2 + 3 = 31
-        let result = approximate_ansi(Color::Rgb(0, 95, 135));
+        let result = to_256_indexed(Color::Rgb(0, 95, 135));
         assert_eq!(result, Color::Indexed(31));
     }
 
     #[test]
-    fn test_approximate_ansi_grayscale_midgray() {
+    fn test_to_256_indexed_grayscale_midgray() {
         // Rgb(118, 118, 118) is a neutral gray; must map into the 24-step grayscale ramp (232..=255).
-        let result = approximate_ansi(Color::Rgb(118, 118, 118));
+        let result = to_256_indexed(Color::Rgb(118, 118, 118));
         assert!(
             matches!(result, Color::Indexed(i) if (232..=255).contains(&i)),
             "expected grayscale ramp index 232..=255, got {:?}",
