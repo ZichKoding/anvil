@@ -209,20 +209,183 @@ impl EditorPane {
                 }
             }
 
+            // Apply software cursor cell styling on the cursor line
+            if is_cursor_line {
+                let cursor_vis_col = self.cursor.col.saturating_sub(col_offset);
+                result_spans = apply_cursor_cell(result_spans, cursor_vis_col, theme);
+            }
+
             lines.push(Line::from(result_spans));
         }
 
         let paragraph = Paragraph::new(lines);
         frame.render_widget(paragraph, inner);
+    }
+}
 
-        if focused {
-            let col_offset = self.viewport.col_offset;
-            let cursor_x =
-                inner.x + gutter_w as u16 + (self.cursor.col.saturating_sub(col_offset)) as u16;
-            let cursor_y = inner.y + (self.cursor.line - self.viewport.top_line) as u16;
-            if cursor_x < inner.x + inner.width && cursor_y < inner.y + inner.height {
-                frame.set_cursor_position((cursor_x, cursor_y));
+/// Split spans to insert cursor cell styling at the given visible column.
+/// `cursor_vis_col` is relative to the text area (after gutter).
+/// `gutter_w` is the width of the gutter span (always the first span).
+fn apply_cursor_cell<'a>(
+    spans: Vec<Span<'a>>,
+    cursor_vis_col: usize,
+    theme: &Theme,
+) -> Vec<Span<'a>> {
+    let cursor_style = Style::default().fg(theme.cursor_fg).bg(theme.cursor_bg);
+
+    // The first span is the gutter — skip it for column counting
+    let mut result: Vec<Span<'a>> = Vec::with_capacity(spans.len() + 2);
+    if spans.is_empty() {
+        return spans;
+    }
+    result.push(spans[0].clone());
+
+    let mut col = 0usize;
+    let mut cursor_applied = false;
+
+    for span in spans.into_iter().skip(1) {
+        let span_len = span.content.len();
+
+        if cursor_applied || col + span_len <= cursor_vis_col {
+            // Cursor is not in this span — emit as-is
+            col += span_len;
+            result.push(span);
+            continue;
+        }
+
+        // Cursor falls within this span
+        let offset_in_span = cursor_vis_col - col;
+        let content: &str = &span.content;
+
+        // Before cursor
+        if offset_in_span > 0 {
+            result.push(Span::styled(
+                content[..offset_in_span].to_string(),
+                span.style,
+            ));
+        }
+
+        // Cursor cell
+        if offset_in_span < span_len {
+            // Cursor is on an existing character
+            let ch = &content[offset_in_span..offset_in_span + 1];
+            result.push(Span::styled(ch.to_string(), cursor_style));
+
+            // After cursor
+            if offset_in_span + 1 < span_len {
+                result.push(Span::styled(
+                    content[offset_in_span + 1..].to_string(),
+                    span.style,
+                ));
             }
         }
+
+        cursor_applied = true;
+        col += span_len;
+    }
+
+    // If cursor is past end of all text, append a styled space
+    if !cursor_applied {
+        result.push(Span::styled(" ".to_string(), cursor_style));
+    }
+
+    result
+}
+
+#[cfg(test)]
+mod cursor_cell_tests {
+    use super::*;
+    use ratatui::style::{Color, Style};
+    use ratatui::text::Span;
+
+    fn test_theme() -> Theme {
+        crate::theme::retroterm::retroterm_theme()
+    }
+
+    fn gutter_span() -> Span<'static> {
+        Span::styled("  1 ".to_string(), Style::default())
+    }
+
+    #[test]
+    fn cursor_at_start_of_span() {
+        let theme = test_theme();
+        let text_style = Style::default().fg(theme.fg);
+        let spans = vec![gutter_span(), Span::styled("hello".to_string(), text_style)];
+        let result = apply_cursor_cell(spans, 0, &theme);
+        // gutter + cursor_cell("h") + rest("ello")
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[1].content.as_ref(), "h");
+        assert_eq!(result[1].style.fg, Some(theme.cursor_fg));
+        assert_eq!(result[1].style.bg, Some(theme.cursor_bg));
+        assert_eq!(result[2].content.as_ref(), "ello");
+    }
+
+    #[test]
+    fn cursor_at_middle_of_span() {
+        let theme = test_theme();
+        let text_style = Style::default().fg(theme.fg);
+        let spans = vec![gutter_span(), Span::styled("hello".to_string(), text_style)];
+        let result = apply_cursor_cell(spans, 2, &theme);
+        // gutter + before("he") + cursor_cell("l") + after("lo")
+        assert_eq!(result.len(), 4);
+        assert_eq!(result[1].content.as_ref(), "he");
+        assert_eq!(result[2].content.as_ref(), "l");
+        assert_eq!(result[2].style.fg, Some(theme.cursor_fg));
+        assert_eq!(result[3].content.as_ref(), "lo");
+    }
+
+    #[test]
+    fn cursor_at_end_of_span() {
+        let theme = test_theme();
+        let text_style = Style::default().fg(theme.fg);
+        let spans = vec![gutter_span(), Span::styled("hello".to_string(), text_style)];
+        let result = apply_cursor_cell(spans, 4, &theme);
+        // gutter + before("hell") + cursor_cell("o")
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[1].content.as_ref(), "hell");
+        assert_eq!(result[2].content.as_ref(), "o");
+        assert_eq!(result[2].style.fg, Some(theme.cursor_fg));
+    }
+
+    #[test]
+    fn cursor_past_end_of_line() {
+        let theme = test_theme();
+        let text_style = Style::default().fg(theme.fg);
+        let spans = vec![gutter_span(), Span::styled("hi".to_string(), text_style)];
+        let result = apply_cursor_cell(spans, 5, &theme);
+        // gutter + "hi" + cursor space
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[2].content.as_ref(), " ");
+        assert_eq!(result[2].style.fg, Some(theme.cursor_fg));
+        assert_eq!(result[2].style.bg, Some(theme.cursor_bg));
+    }
+
+    #[test]
+    fn cursor_across_multiple_spans() {
+        let theme = test_theme();
+        let s1 = Style::default().fg(theme.keyword);
+        let s2 = Style::default().fg(theme.string);
+        let spans = vec![
+            gutter_span(),
+            Span::styled("fn".to_string(), s1),
+            Span::styled(" main".to_string(), s2),
+        ];
+        // cursor at col 3 => in second text span at offset 1 ('m')
+        let result = apply_cursor_cell(spans, 3, &theme);
+        // gutter + "fn" (untouched) + " " (before) + cursor("m") + "ain" (after)
+        assert_eq!(result.len(), 5);
+        assert_eq!(result[1].content.as_ref(), "fn");
+        assert_eq!(result[2].content.as_ref(), " ");
+        assert_eq!(result[3].content.as_ref(), "m");
+        assert_eq!(result[3].style.fg, Some(theme.cursor_fg));
+        assert_eq!(result[4].content.as_ref(), "ain");
+    }
+
+    #[test]
+    fn theme_has_cursor_fields() {
+        let theme = test_theme();
+        // Verify cursor colors are set (not default)
+        assert!(matches!(theme.cursor_fg, Color::Rgb(_, _, _)));
+        assert!(matches!(theme.cursor_bg, Color::Rgb(_, _, _)));
     }
 }

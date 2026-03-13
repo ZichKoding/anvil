@@ -49,7 +49,7 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) {
                 match app.mode {
                     Mode::Normal => handle_normal_mode(app, key),
                     Mode::Insert => handle_insert_mode(app, key),
-                    Mode::Command => {} // handled above
+                    Mode::Command => unreachable!("command mode is intercepted before focus dispatch"),
                 }
             } else {
                 // VS Code mode: always insert
@@ -375,7 +375,7 @@ fn handle_command_mode(app: &mut App, key: KeyEvent) {
             app.mode = Mode::Normal;
             let result = command::execute_command(&input, app);
             match result {
-                CommandResult::Ok => {}
+                CommandResult::Saved => {}
                 CommandResult::Quit => app.quit(),
                 CommandResult::Error(msg) => {
                     app.status_message = msg;
@@ -389,12 +389,10 @@ fn handle_command_mode(app: &mut App, key: KeyEvent) {
                 app.status_message = String::from("Ready");
             } else {
                 app.command_buffer.pop();
-                app.status_message = format!(":{}", app.command_buffer);
             }
         }
-        KeyCode::Char(ch) => {
+        KeyCode::Char(ch) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.command_buffer.push(ch);
-            app.status_message = format!(":{}", app.command_buffer);
         }
         _ => {}
     }
@@ -534,6 +532,21 @@ mod tests {
         handle_key_event(&mut app, key(KeyCode::Enter));
         assert!(app.running);
         assert!(app.status_message.contains("Unknown command"));
+    }
+
+    // --- Ctrl+key guard in command mode ---
+
+    #[test]
+    fn test_ctrl_a_in_command_mode_does_not_append() {
+        let mut app = make_test_app();
+        app.mode = Mode::Command;
+        app.command_buffer.clear();
+        let ctrl_a = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
+        handle_key_event(&mut app, ctrl_a);
+        assert!(
+            app.command_buffer.is_empty(),
+            "Ctrl+A should not append to command buffer"
+        );
     }
 
     // --- Command mode works regardless of focus ---

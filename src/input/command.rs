@@ -2,7 +2,7 @@ use crate::app::App;
 
 #[derive(Debug, PartialEq)]
 pub enum CommandResult {
-    Ok,
+    Saved,
     Quit,
     Error(String),
 }
@@ -14,7 +14,7 @@ pub fn execute_command(input: &str, app: &mut App) -> CommandResult {
                 match editor.buffer.save() {
                     std::result::Result::Ok(()) => {
                         app.status_message = format!("Saved {}", editor.buffer.filename());
-                        CommandResult::Ok
+                        CommandResult::Saved
                     }
                     Err(e) => CommandResult::Error(format!("Save failed: {e}")),
                 }
@@ -30,13 +30,21 @@ pub fn execute_command(input: &str, app: &mut App) -> CommandResult {
             }
         }
         "wq" => {
-            if let Some(editor) = app.active_editor_mut() {
+            // Step 1: save the active buffer only if it has unsaved changes
+            if let Some(editor) = app.active_editor_mut()
+                && editor.buffer.modified
+            {
                 if let Err(e) = editor.buffer.save() {
                     return CommandResult::Error(format!("Save failed: {e}"));
                 }
                 app.status_message = format!("Saved {}", editor.buffer.filename());
             }
-            CommandResult::Quit
+            // Step 2: refuse to quit if any other buffer is still dirty
+            if app.editors.iter().any(|e| e.buffer.modified) {
+                CommandResult::Error("Other unsaved buffers. Use :q! to force quit.".to_string())
+            } else {
+                CommandResult::Quit
+            }
         }
         "q!" => CommandResult::Quit,
         other => CommandResult::Error(format!("Unknown command: {}", other)),
@@ -120,6 +128,40 @@ mod tests {
         let buf = make_test_buffer("test.txt", false);
         app.editors.push(EditorPane::new(buf));
         let result = execute_command("q!", &mut app);
+        assert_eq!(result, CommandResult::Quit);
+    }
+
+    // --- execute_command: :wq ---
+
+    #[test]
+    fn test_command_wq_with_other_dirty_buffer_returns_error() {
+        let mut app = make_test_app();
+        // First editor: clean (simulates the active one after save)
+        let buf1 = make_test_buffer("clean.txt", false);
+        app.editors.push(EditorPane::new(buf1));
+        // Second editor: dirty (another unsaved buffer)
+        let buf2 = make_test_buffer("dirty.txt", true);
+        app.editors.push(EditorPane::new(buf2));
+        let result = execute_command("wq", &mut app);
+        assert!(matches!(result, CommandResult::Error(_)));
+        if let CommandResult::Error(msg) = result {
+            assert!(msg.contains("unsaved buffers"));
+        }
+    }
+
+    #[test]
+    fn test_command_wq_all_clean_returns_quit() {
+        let mut app = make_test_app();
+        let buf = make_test_buffer("clean.txt", false);
+        app.editors.push(EditorPane::new(buf));
+        let result = execute_command("wq", &mut app);
+        assert_eq!(result, CommandResult::Quit);
+    }
+
+    #[test]
+    fn test_command_wq_no_editors_returns_quit() {
+        let mut app = make_test_app();
+        let result = execute_command("wq", &mut app);
         assert_eq!(result, CommandResult::Quit);
     }
 

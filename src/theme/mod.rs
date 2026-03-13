@@ -17,6 +17,8 @@ pub struct Theme {
     pub border_focused: Color,
     pub border_unfocused: Color,
     pub cursor_line_bg: Color,
+    pub cursor_fg: Color,
+    pub cursor_bg: Color,
 
     // Syntax groups
     pub keyword: Color,
@@ -66,6 +68,7 @@ impl Theme {
     }
 
     /// Convert all Rgb colors in this theme to their ANSI fallback equivalents.
+    // NOTE: When adding fields to Theme, this function must be updated.
     pub fn with_fallback_colors(self) -> Self {
         Self {
             bg: palette::to_256_fallback(self.bg),
@@ -79,6 +82,8 @@ impl Theme {
             border_focused: palette::to_256_fallback(self.border_focused),
             border_unfocused: palette::to_256_fallback(self.border_unfocused),
             cursor_line_bg: palette::to_256_fallback(self.cursor_line_bg),
+            cursor_fg: palette::to_256_fallback(self.cursor_fg),
+            cursor_bg: palette::to_256_fallback(self.cursor_bg),
             keyword: palette::to_256_fallback(self.keyword),
             string: palette::to_256_fallback(self.string),
             comment: palette::to_256_fallback(self.comment),
@@ -101,11 +106,17 @@ impl Theme {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_os = "windows"))]
     use ratatui::style::Color;
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_with_fallback_colors_converts_all_rgb_fields() {
         unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
         let theme = retroterm::retroterm_theme();
         let fallback = theme.with_fallback_colors();
 
@@ -119,6 +130,8 @@ mod tests {
         assert!(!matches!(fallback.variable, Color::Rgb(_, _, _)));
         assert!(!matches!(fallback.constant, Color::Rgb(_, _, _)));
         assert!(!matches!(fallback.statusbar_bg, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.cursor_fg, Color::Rgb(_, _, _)));
+        assert!(!matches!(fallback.cursor_bg, Color::Rgb(_, _, _)));
     }
 
     #[test]

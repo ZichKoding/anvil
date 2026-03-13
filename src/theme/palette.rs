@@ -15,18 +15,49 @@ pub fn hex_to_color(hex: &str) -> Color {
 }
 
 pub fn supports_truecolor() -> bool {
-    std::env::var("COLORTERM")
+    // Standard: COLORTERM is the canonical indicator (Linux/macOS)
+    if std::env::var("COLORTERM")
         .map(|v| v == "truecolor" || v == "24bit")
         .unwrap_or(false)
+    {
+        return true;
+    }
+
+    // Windows Terminal sets WT_SESSION
+    if std::env::var("WT_SESSION").is_ok() {
+        return true;
+    }
+
+    // ConEmu/Cmder set ConEmuANSI=ON
+    if std::env::var("ConEmuANSI")
+        .map(|v| v == "ON")
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    // TERM_PROGRAM covers VS Code integrated terminal, iTerm2, WezTerm
+    if let Ok(tp) = std::env::var("TERM_PROGRAM")
+        && (tp == "vscode" || tp == "iTerm.app" || tp == "WezTerm")
+    {
+        return true;
+    }
+
+    // Modern Windows terminals (ConPTY) support truecolor
+    #[cfg(target_os = "windows")]
+    {
+        true
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    false
 }
 
-/// Map truecolor to nearest 256-color equivalent
+/// Convert an Rgb color to its nearest ANSI equivalent unconditionally.
+/// Call site is responsible for checking `supports_truecolor()` before invoking.
 pub fn to_256_fallback(color: Color) -> Color {
     match color {
-        Color::Rgb(_, _, _) if !supports_truecolor() => {
-            // Use basic ANSI colors as fallback
-            approximate_ansi(color)
-        }
+        Color::Rgb(_, _, _) => approximate_ansi(color),
         _ => color,
     }
 }
@@ -119,10 +150,82 @@ mod tests {
         unsafe { std::env::remove_var("COLORTERM") };
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_supports_truecolor_unset_returns_false() {
         unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
         assert!(!supports_truecolor());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_supports_truecolor_windows_default_returns_true() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
+        assert!(supports_truecolor());
+    }
+
+    #[test]
+    fn test_supports_truecolor_wt_session() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::set_var("WT_SESSION", "some-guid") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("WT_SESSION") };
+    }
+
+    #[test]
+    fn test_supports_truecolor_conemu() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::set_var("ConEmuANSI", "ON") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("ConEmuANSI") };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_supports_truecolor_conemu_off_returns_false() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
+        unsafe { std::env::set_var("ConEmuANSI", "OFF") };
+        assert!(!supports_truecolor());
+        unsafe { std::env::remove_var("ConEmuANSI") };
+    }
+
+    #[test]
+    fn test_supports_truecolor_term_program_vscode() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::set_var("TERM_PROGRAM", "vscode") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
+    }
+
+    #[test]
+    fn test_supports_truecolor_term_program_iterm() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::set_var("TERM_PROGRAM", "iTerm.app") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
+    }
+
+    #[test]
+    fn test_supports_truecolor_term_program_wezterm() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::set_var("TERM_PROGRAM", "WezTerm") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
     }
 
     // --- to_256_fallback ---
@@ -135,18 +238,9 @@ mod tests {
     }
 
     #[test]
-    fn test_to_256_fallback_converts_rgb_when_no_truecolor() {
-        unsafe { std::env::remove_var("COLORTERM") };
+    fn test_to_256_fallback_always_converts_rgb() {
         let result = to_256_fallback(Color::Rgb(255, 0, 0));
         assert!(!matches!(result, Color::Rgb(_, _, _)));
-    }
-
-    #[test]
-    fn test_to_256_fallback_preserves_rgb_when_truecolor() {
-        unsafe { std::env::set_var("COLORTERM", "truecolor") };
-        let result = to_256_fallback(Color::Rgb(255, 0, 0));
-        assert_eq!(result, Color::Rgb(255, 0, 0));
-        unsafe { std::env::remove_var("COLORTERM") };
     }
 
     // --- approximate_ansi ---

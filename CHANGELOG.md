@@ -2,6 +2,21 @@
 
 All notable changes to Anvil will be documented in this file.
 
+## [0.3.0] - 2026-03-13
+
+### Added
+- **Command mode** — Vim-style `:w`, `:q`, `:wq`, `:q!` with unsaved changes guard (#8)
+- **Function/constant highlighting** — Context-aware identifier classification via tree-sitter parent node (#10)
+- **Terminal color fallback** — Automatic ANSI color approximation for non-truecolor terminals (#7)
+- 50 new unit tests (152 total)
+
+### Fixed
+- Truecolor detection — recognize Windows Terminal, ConEmu, VS Code; default to truecolor on Windows
+- Cursor visibility — software-rendered cursor cell with inverted colors, independent of terminal emulator
+- RetroTerm theme contrast — improved 9 color values for better readability (gutter, comments, borders, punctuation, operators)
+- Integer overflow in `approximate_ansi()` luminance calculation (u16 → u32)
+- `:wq` data-loss bug — now checks all editors for unsaved changes after saving active buffer
+
 ## [0.2.0] - 2026-03-13
 
 ### Removed
