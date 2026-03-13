@@ -157,7 +157,9 @@ impl FileTree {
 
                 let is_dotfile = node.entry.name.starts_with('.');
                 let style = if node.entry.is_dir {
-                    Style::default().fg(theme.tree_dir).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(theme.tree_dir)
+                        .add_modifier(Modifier::BOLD)
                 } else if is_dotfile {
                     Style::default().fg(theme.tree_dotfile)
                 } else {

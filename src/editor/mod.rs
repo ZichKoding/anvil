@@ -121,10 +121,9 @@ impl EditorPane {
             };
             let full_len = full_content.len();
 
-            let hl_spans = self.highlighter.highlight_line(
-                line_byte_start,
-                line_byte_end,
-            );
+            let hl_spans = self
+                .highlighter
+                .highlight_line(line_byte_start, line_byte_end);
 
             let line_bg = if is_cursor_line {
                 Some(theme.cursor_line_bg)
@@ -218,7 +217,8 @@ impl EditorPane {
 
         if focused {
             let col_offset = self.viewport.col_offset;
-            let cursor_x = inner.x + gutter_w as u16 + (self.cursor.col.saturating_sub(col_offset)) as u16;
+            let cursor_x =
+                inner.x + gutter_w as u16 + (self.cursor.col.saturating_sub(col_offset)) as u16;
             let cursor_y = inner.y + (self.cursor.line - self.viewport.top_line) as u16;
             if cursor_x < inner.x + inner.width && cursor_y < inner.y + inner.height {
                 frame.set_cursor_position((cursor_x, cursor_y));

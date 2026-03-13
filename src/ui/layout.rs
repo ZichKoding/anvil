@@ -54,12 +54,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         let tree_focused = app.focus == Focus::Tree;
         let theme = &app.theme;
 
-        app.file_tree.render_themed(
-            frame,
-            h_chunks[0],
-            tree_focused,
-            theme,
-        );
+        app.file_tree
+            .render_themed(frame, h_chunks[0], tree_focused, theme);
         render_editor_area(frame, app, h_chunks[1]);
     } else {
         render_editor_area(frame, app, content_area);
