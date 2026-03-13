@@ -102,7 +102,7 @@ fn render_welcome(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     };
 
     let content = format!(
-        "  Welcome to Anvil v0.2.0\n\n  A lightweight terminal IDE\n\n{}\n\n  Keys:\n    Tab     - switch focus\n    Enter   - open file / expand folder\n    Ctrl+B  - toggle sidebar\n    Ctrl+S  - save file",
+        "  Welcome to Anvil v0.3.0\n\n  A lightweight terminal IDE\n\n{}\n\n  Keys:\n    Tab     - switch focus\n    Enter   - open file / expand folder\n    Ctrl+B  - toggle sidebar\n    Ctrl+S  - save file",
         mode_info
     );
 
