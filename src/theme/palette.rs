@@ -43,6 +43,14 @@ pub fn supports_truecolor() -> bool {
         return true;
     }
 
+    // Known Linux terminal emulators that support truecolor
+    if std::env::var("KITTY_WINDOW_ID").is_ok()
+        || std::env::var("ALACRITTY_WINDOW_ID").is_ok()
+        || std::env::var("FOOT_TERMINAL_VERSION").is_ok()
+    {
+        return true;
+    }
+
     // Modern Windows terminals (ConPTY) support truecolor
     #[cfg(target_os = "windows")]
     {
@@ -53,80 +61,43 @@ pub fn supports_truecolor() -> bool {
     false
 }
 
-/// Convert an Rgb color to its nearest ANSI equivalent unconditionally.
+/// Convert an Rgb color to its nearest 256-color indexed equivalent.
 /// Call site is responsible for checking `supports_truecolor()` before invoking.
 pub fn to_256_fallback(color: Color) -> Color {
     match color {
-        Color::Rgb(_, _, _) => approximate_ansi(color),
+        Color::Rgb(_, _, _) => to_256_indexed(color),
         _ => color,
     }
 }
 
-pub fn approximate_ansi(color: Color) -> Color {
+fn to_256_indexed(color: Color) -> Color {
     let Color::Rgb(r, g, b) = color else {
         return color;
     };
 
-    // Simple luminance-based mapping to basic 16 colors
-    let lum = (r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000;
-    let is_bright = lum > 128;
+    let max_ch = r.max(g).max(b);
+    let min_ch = r.min(g).min(b);
 
-    // Determine dominant channel
-    let max = r.max(g).max(b);
-    if max < 40 {
-        return Color::Black;
+    // Near-gray: all channels within 10 of each other
+    if (max_ch as u16 - min_ch as u16) <= 10 {
+        let avg = (r as u16 + g as u16 + b as u16) / 3;
+        if avg < 8 {
+            return Color::Indexed(16); // below ramp floor: cube black
+        }
+        if avg > 238 {
+            return Color::Indexed(231); // above ramp ceiling: cube white
+        }
+        // Grayscale ramp: indices 232..=255 map to grays 8, 18, 28, ..., 238
+        let idx = ((avg as f64 - 8.0) / 10.0).round() as u8;
+        return Color::Indexed(232 + idx);
     }
 
-    let r_dom = r > g && r > b;
-    let g_dom = g > r && g > b;
-    let b_dom = b > r && b > g;
-    let rg = r > 100 && g > 100 && b < 80;
-    let rb = r > 100 && b > 100 && g < 80;
-    let gb = g > 100 && b > 100 && r < 80;
+    // Color cube: map each channel to 0-5 index
+    let r_idx = (r as f64 / 255.0 * 5.0).round() as u8;
+    let g_idx = (g as f64 / 255.0 * 5.0).round() as u8;
+    let b_idx = (b as f64 / 255.0 * 5.0).round() as u8;
 
-    if rg {
-        if is_bright {
-            Color::LightYellow
-        } else {
-            Color::Yellow
-        }
-    } else if rb {
-        if is_bright {
-            Color::LightMagenta
-        } else {
-            Color::Magenta
-        }
-    } else if gb {
-        if is_bright {
-            Color::LightCyan
-        } else {
-            Color::Cyan
-        }
-    } else if r_dom {
-        if is_bright {
-            Color::LightRed
-        } else {
-            Color::Red
-        }
-    } else if g_dom {
-        if is_bright {
-            Color::LightGreen
-        } else {
-            Color::Green
-        }
-    } else if b_dom {
-        if is_bright {
-            Color::LightBlue
-        } else {
-            Color::Blue
-        }
-    } else if lum > 200 {
-        Color::White
-    } else if lum > 100 {
-        Color::Gray
-    } else {
-        Color::DarkGray
-    }
+    Color::Indexed(16 + 36 * r_idx + 6 * g_idx + b_idx)
 }
 
 #[cfg(test)]
@@ -157,6 +128,9 @@ mod tests {
         unsafe { std::env::remove_var("WT_SESSION") };
         unsafe { std::env::remove_var("ConEmuANSI") };
         unsafe { std::env::remove_var("TERM_PROGRAM") };
+        unsafe { std::env::remove_var("KITTY_WINDOW_ID") };
+        unsafe { std::env::remove_var("ALACRITTY_WINDOW_ID") };
+        unsafe { std::env::remove_var("FOOT_TERMINAL_VERSION") };
         assert!(!supports_truecolor());
     }
 
@@ -194,6 +168,9 @@ mod tests {
         unsafe { std::env::remove_var("WT_SESSION") };
         unsafe { std::env::remove_var("TERM_PROGRAM") };
         unsafe { std::env::set_var("ConEmuANSI", "OFF") };
+        unsafe { std::env::remove_var("KITTY_WINDOW_ID") };
+        unsafe { std::env::remove_var("ALACRITTY_WINDOW_ID") };
+        unsafe { std::env::remove_var("FOOT_TERMINAL_VERSION") };
         assert!(!supports_truecolor());
         unsafe { std::env::remove_var("ConEmuANSI") };
     }
@@ -228,6 +205,50 @@ mod tests {
         unsafe { std::env::remove_var("TERM_PROGRAM") };
     }
 
+    // --- terminal emulator env var detection ---
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_supports_truecolor_kitty() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
+        unsafe { std::env::remove_var("ALACRITTY_WINDOW_ID") };
+        unsafe { std::env::remove_var("FOOT_TERMINAL_VERSION") };
+        unsafe { std::env::set_var("KITTY_WINDOW_ID", "1") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("KITTY_WINDOW_ID") };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_supports_truecolor_alacritty() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
+        unsafe { std::env::remove_var("KITTY_WINDOW_ID") };
+        unsafe { std::env::remove_var("FOOT_TERMINAL_VERSION") };
+        unsafe { std::env::set_var("ALACRITTY_WINDOW_ID", "1") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("ALACRITTY_WINDOW_ID") };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_supports_truecolor_foot() {
+        unsafe { std::env::remove_var("COLORTERM") };
+        unsafe { std::env::remove_var("WT_SESSION") };
+        unsafe { std::env::remove_var("ConEmuANSI") };
+        unsafe { std::env::remove_var("TERM_PROGRAM") };
+        unsafe { std::env::remove_var("KITTY_WINDOW_ID") };
+        unsafe { std::env::remove_var("ALACRITTY_WINDOW_ID") };
+        unsafe { std::env::set_var("FOOT_TERMINAL_VERSION", "1.17.0") };
+        assert!(supports_truecolor());
+        unsafe { std::env::remove_var("FOOT_TERMINAL_VERSION") };
+    }
+
     // --- to_256_fallback ---
 
     #[test]
@@ -243,41 +264,70 @@ mod tests {
         assert!(!matches!(result, Color::Rgb(_, _, _)));
     }
 
-    // --- approximate_ansi ---
+    // --- to_256_indexed ---
 
     #[test]
-    fn test_approximate_ansi_pure_red() {
-        let result = approximate_ansi(Color::Rgb(255, 0, 0));
-        assert!(matches!(result, Color::Red | Color::LightRed));
+    fn test_to_256_indexed_pure_red() {
+        let result = to_256_indexed(Color::Rgb(255, 0, 0));
+        assert_eq!(result, Color::Indexed(196));
     }
 
     #[test]
-    fn test_approximate_ansi_pure_green() {
-        let result = approximate_ansi(Color::Rgb(0, 255, 0));
-        assert!(matches!(result, Color::Green | Color::LightGreen));
+    fn test_to_256_indexed_pure_green() {
+        let result = to_256_indexed(Color::Rgb(0, 255, 0));
+        assert_eq!(result, Color::Indexed(46));
     }
 
     #[test]
-    fn test_approximate_ansi_pure_blue() {
-        let result = approximate_ansi(Color::Rgb(0, 0, 255));
-        assert!(matches!(result, Color::Blue | Color::LightBlue));
+    fn test_to_256_indexed_pure_blue() {
+        let result = to_256_indexed(Color::Rgb(0, 0, 255));
+        assert_eq!(result, Color::Indexed(21));
     }
 
     #[test]
-    fn test_approximate_ansi_black() {
-        let result = approximate_ansi(Color::Rgb(0, 0, 0));
-        assert_eq!(result, Color::Black);
+    fn test_to_256_indexed_black() {
+        let result = to_256_indexed(Color::Rgb(0, 0, 0));
+        assert_eq!(result, Color::Indexed(16));
     }
 
     #[test]
-    fn test_approximate_ansi_white() {
-        let result = approximate_ansi(Color::Rgb(255, 255, 255));
-        assert_eq!(result, Color::White);
+    fn test_to_256_indexed_white() {
+        let result = to_256_indexed(Color::Rgb(255, 255, 255));
+        assert_eq!(result, Color::Indexed(231));
     }
 
     #[test]
-    fn test_approximate_ansi_non_rgb_passthrough() {
-        assert_eq!(approximate_ansi(Color::Cyan), Color::Cyan);
+    fn test_to_256_indexed_non_rgb_passthrough() {
+        assert_eq!(to_256_indexed(Color::Cyan), Color::Cyan);
+    }
+
+    // --- 256-color regression tests ---
+
+    #[test]
+    fn test_to_256_indexed_cursor_colors_distinguishable() {
+        // Regression: cursor (dark bg) and text (light fg) must not map to the same index.
+        // Before the fix both collapsed to the same 16-color value, making the cursor invisible.
+        let bg = to_256_indexed(Color::Rgb(26, 26, 46));
+        let fg = to_256_indexed(Color::Rgb(224, 192, 151));
+        assert_ne!(bg, fg, "cursor background and foreground must map to different indexed colors");
+    }
+
+    #[test]
+    fn test_to_256_indexed_cube_mixed() {
+        // Rgb(0, 95, 135): r_idx=0, g_idx=2, b_idx=3 => 16 + 36*0 + 6*2 + 3 = 31
+        let result = to_256_indexed(Color::Rgb(0, 95, 135));
+        assert_eq!(result, Color::Indexed(31));
+    }
+
+    #[test]
+    fn test_to_256_indexed_grayscale_midgray() {
+        // Rgb(118, 118, 118) is a neutral gray; must map into the 24-step grayscale ramp (232..=255).
+        let result = to_256_indexed(Color::Rgb(118, 118, 118));
+        assert!(
+            matches!(result, Color::Indexed(i) if (232..=255).contains(&i)),
+            "expected grayscale ramp index 232..=255, got {:?}",
+            result
+        );
     }
 
     // --- Valid hex ---

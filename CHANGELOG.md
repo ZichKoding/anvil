@@ -2,6 +2,23 @@
 
 All notable changes to Anvil will be documented in this file.
 
+## [0.3.1] - 2026-03-13
+
+### Fixed
+- **Cursor invisible on Pi** — 16-color ANSI fallback mapped cursor_fg (`#e0c097`) and bg (`#1a1a2e`) to the same `Color::Blue`, making the cursor invisible on terminals without `COLORTERM`. Replaced with 256-color indexed mapping using xterm color cube and grayscale ramp (#17)
+- **Truecolor detection** — added kitty (`KITTY_WINDOW_ID`), alacritty (`ALACRITTY_WINDOW_ID`), and foot (`FOOT_TERMINAL_VERSION`) env var detection to `supports_truecolor()`
+
+### Changed
+- Renamed `approximate_ansi()` to `to_256_indexed()` and made it private — the function now produces 256-color indexed values, not 16-color ANSI
+- Aligned grayscale ramp guard thresholds to formula domain boundaries (< 8 / > 238)
+- Added `RUST_TEST_THREADS=1` in `.cargo/config.toml` for safe env var manipulation in tests
+
+### Documentation
+- Added ADR-0003: Use 256-color indexed fallback instead of TERM-based truecolor heuristic
+- Updated README keybindings table with complete and accurate bindings
+- Added undocumented keybindings: `Ctrl+Q`, `Ctrl+[`, `0`/`$`, Home/End, PageUp/PageDown, tree navigation, Insert-mode editing keys
+- Added `sidebar.show_icons` to config example
+
 ## [0.3.0] - 2026-03-13
 
 ### Added
@@ -40,7 +57,7 @@ All notable changes to Anvil will be documented in this file.
 - `#[allow(dead_code)]` annotations with issue references on intentionally kept scaffolding:
   - `Mode::Command` (#8)
   - `HighlightGroup::Function` / `Constant` (#10)
-  - `supports_truecolor()` / `to_256_fallback()` / `approximate_ansi()` (#7)
+  - `supports_truecolor()` / `to_256_fallback()` / `to_256_indexed()` (#7)
 
 ## [0.1.0] - 2025-01-01
 
